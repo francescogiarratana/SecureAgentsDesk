@@ -6,6 +6,7 @@ const DECISION_META = {
   ALLOW: { label: "Eseguito", className: "trace-allow" },
   DENY: { label: "Bloccato", className: "trace-deny" },
   REQUIRE_APPROVAL: { label: "Richiede approvazione Management", className: "trace-approval" },
+  REQUIRE_SELF_APPROVAL: { label: "In attesa della tua conferma", className: "trace-self-approval" },
   CLIENT_ACTION: { label: "Eseguito in locale", className: "trace-client" },
 };
 

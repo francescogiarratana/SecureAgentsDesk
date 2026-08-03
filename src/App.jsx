@@ -6,9 +6,11 @@ import {
   reportArtifactSaved,
   sendChatMessage,
   submitClientActionResult,
+  submitSelfApprovalResult,
 } from "./api";
 import ArtifactPanel from "./components/ArtifactPanel";
 import PlanPreview from "./components/PlanPreview";
+import SelfApprovalCard from "./components/SelfApprovalCard";
 import ToolTrace from "./components/ToolTrace";
 import {
   getAuthorizedFolder,
@@ -62,10 +64,12 @@ function getStoredMode() {
 // sincrono descritto in agent_loop.py: nessun WebSocket/SSE, solo una
 // seconda POST per ogni pausa, dal punto di vista di chi la implementa qui.
 //
-// Risolve SOLO awaiting_client_action da sola. awaiting_plan_confirmation
-// non passa mai da qui: quello stato lo risolve un click umano (Conferma/
-// Rifiuta in PlanPreview), non il client in automatico — confonderli
-// disattiverebbe la modalità "Con piano" in silenzio.
+// Risolve SOLO awaiting_client_action da sola. Né awaiting_plan_confirmation
+// né awaiting_self_approval passano mai da qui: quegli stati li risolve un
+// click umano (Conferma/Rifiuta in PlanPreview o SelfApprovalCard), non il
+// client in automatico — confonderli disattiverebbe la modalità "Con piano"
+// o, peggio, farebbe eseguire un'azione WRITE senza un vero consenso
+// esplicito dell'utente.
 async function runClientActionTrampoline(token, initialResponse, onToolRun) {
   let response = initialResponse;
   while (response.status === "awaiting_client_action") {
@@ -99,6 +103,13 @@ export default function App() {
   // il piano.
   const [pendingPlan, setPendingPlan] = useState(null);
   const [pendingPlanQuery, setPendingPlanQuery] = useState(null);
+
+  // Self-approval: un'azione WRITE ordinaria (calendario/email propri)
+  // aspetta un click umano — Conferma/Rifiuta in SelfApprovalCard — prima
+  // di eseguire per davvero. Diverso dalla coda di approvazione Management
+  // (quella vive in SecureAgentsFrontend, non qui): questa è la stessa
+  // persona che ha avviato la conversazione, inline, nella stessa app.
+  const [pendingSelfApproval, setPendingSelfApproval] = useState(null);
 
   // Rapida: un tool già notificato una volta in questa sessione non produce
   // più un avviso inline — solo una preferenza di UI, mai una scelta di
@@ -157,6 +168,11 @@ export default function App() {
       // .query — è la fonte di verità da riusare alla conferma/rifiuto,
       // non un testo tracciato separatamente lato client.
       setPendingPlanQuery(initialResponse.query);
+      return;
+    }
+
+    if (initialResponse.status === "awaiting_self_approval") {
+      setPendingSelfApproval(initialResponse.awaiting_self_approval);
       return;
     }
 
@@ -221,6 +237,22 @@ export default function App() {
         planDecision: decision,
       });
       await finishTurn(initial);
+    } catch (err) {
+      setError(String(err?.message || err));
+    } finally {
+      setPendingNotice(null);
+      setSending(false);
+    }
+  }
+
+  async function handleSelfApprovalDecision(decision) {
+    const selfApprovalId = pendingSelfApproval.id;
+    setPendingSelfApproval(null);
+    setSending(true);
+    setError(null);
+    try {
+      const resumed = await submitSelfApprovalResult(token, selfApprovalId, decision);
+      await finishTurn(resumed);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
@@ -402,6 +434,14 @@ export default function App() {
             onReject={() => handlePlanDecision("reject")}
           />
         )}
+        {pendingSelfApproval && (
+          <SelfApprovalCard
+            selfApproval={pendingSelfApproval}
+            disabled={sending}
+            onConfirm={() => handleSelfApprovalDecision("confirm")}
+            onReject={() => handleSelfApprovalDecision("reject")}
+          />
+        )}
         {pendingNotice && <div className="bubble bubble-system">{pendingNotice}</div>}
         {error && <div className="bubble bubble-error">{error}</div>}
       </section>
@@ -412,10 +452,13 @@ export default function App() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleComposerKeyDown}
           placeholder="Scrivi un messaggio... (Shift+Invio per andare a capo)"
-          disabled={sending || Boolean(pendingPlan)}
+          disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
           rows={1}
         />
-        <button type="submit" disabled={sending || Boolean(pendingPlan) || !query.trim()}>
+        <button
+          type="submit"
+          disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval) || !query.trim()}
+        >
           Invia
         </button>
       </form>

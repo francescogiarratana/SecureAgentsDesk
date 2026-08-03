@@ -285,6 +285,11 @@ button:disabled {
   color: #396cd8;
 }
 
+.trace-self-approval .trace-badge {
+  background-color: #eafaf1;
+  color: #1e7a34;
+}
+
 .trace-reason {
   color: #999999;
   font-style: italic;
@@ -365,6 +370,47 @@ button:disabled {
 
 .plan-reject-button:hover {
   background-color: #fdecea;
+}
+
+/* --- Self-approval card ------------------------------------------------ */
+
+.self-approval-card {
+  align-self: center;
+  max-width: 90%;
+  width: 28rem;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1rem 1.2rem;
+}
+
+.self-approval-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.6rem;
+}
+
+.self-approval-note {
+  color: #777777;
+  font-size: 0.8em;
+}
+
+.self-approval-description {
+  font-weight: 500;
+  margin: 0 0 0.2rem;
+}
+
+.self-approval-details {
+  color: #555555;
+  font-size: 0.9em;
+  margin: 0 0 0.6rem;
+}
+
+.self-approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* --- Artifact panel --------------------------------------------------- */
@@ -483,6 +529,7 @@ button:disabled {
   }
 
   .plan-preview,
+  .self-approval-card,
   .modal {
     background-color: #2a2a2a;
     border-color: #3a3a3a;
@@ -495,8 +542,18 @@ button:disabled {
 
   .plan-goal,
   .artifact-summary,
-  .trace-tool-name {
+  .trace-tool-name,
+  .self-approval-details {
     color: #bbbbbb;
+  }
+
+  .self-approval-note {
+    color: #888888;
+  }
+
+  .trace-self-approval .trace-badge {
+    background-color: #1f3a26;
+    color: #7fd99a;
   }
 
   .artifact-panel {

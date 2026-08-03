@@ -4,10 +4,24 @@
 // variare in base a cosa emerge durante l'esecuzione, come dice plan.note.
 const RISK_LABELS = {
   read_only: "Lettura",
-  write: "Scrittura — richiede approvazione Management",
   client_action: "Locale, sul tuo computer",
   unknown: "Non disponibile",
 };
+
+// Per risk="write" la label dipende da CHI dovrà confermare (vedi
+// PlanStepOut.approval_track): un'azione ordinaria come il proprio
+// calendario/email la confermi tu stesso inline, non un ruolo Management
+// separato — riservato solo alle azioni più delicate.
+function writeStepLabel(step) {
+  return step.approval_track === "management"
+    ? "Scrittura — richiede approvazione Management"
+    : "Scrittura — la confermi tu";
+}
+
+function stepRiskLabel(step) {
+  if (step.risk === "write") return writeStepLabel(step);
+  return RISK_LABELS[step.risk] || step.risk;
+}
 
 export default function PlanPreview({ plan, onConfirm, onReject, disabled }) {
   if (!plan) return null;
@@ -28,7 +42,7 @@ export default function PlanPreview({ plan, onConfirm, onReject, disabled }) {
           {plan.steps.map((step) => (
             <li key={step.step_number} className={step.requires_approval ? "plan-step-approval" : ""}>
               <span className="plan-step-description">{step.description}</span>
-              <span className="plan-step-risk">{RISK_LABELS[step.risk] || step.risk}</span>
+              <span className="plan-step-risk">{stepRiskLabel(step)}</span>
             </li>
           ))}
         </ol>

@@ -67,6 +67,14 @@ export function submitClientActionResult(token, clientActionId, { result, error 
   });
 }
 
+// Conferma/rifiuto della STESSA persona che ha avviato la conversazione per
+// un'azione WRITE a rischio contenuto (calendario/email propri — vedi
+// approval_track="self" in agent_router.py) — diverso dalla coda di
+// approvazione Management, che vive in SecureAgentsFrontend, non qui.
+export function submitSelfApprovalResult(token, selfApprovalId, decision) {
+  return postJson(`/chat/self-approvals/${selfApprovalId}/result`, token, { decision });
+}
+
 export function listArtifacts(token, sessionId) {
   return getJson("/artifacts", token, { session_id: sessionId });
 }
