@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import Markdown from "react-markdown";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -61,10 +62,15 @@ function ChartCanvas({ chart, index }) {
   return <canvas ref={canvasRef} />;
 }
 
-// Anteprima viva di un report generato (generate_report nel backend) — il
-// file HTML autonomo scaricabile/condivisibile è una cosa diversa (vedi
-// reportRenderer.buildStandaloneReportHtml), pensata per essere aperta fuori
-// da quest'app; qui è solo il rendering dentro la finestra di Desk stessa.
+// Anteprima viva di un report generato (generate_report nel backend),
+// mostrata come parte della risposta stessa (stesso principio di Claude
+// Code/Perplexity: il documento generato è un allegato dentro il turno,
+// non qualcosa che si va a cercare altrove). Il testo (sintesi, sezioni) è
+// markdown vero, con lo stesso componente già usato per le risposte in
+// SecureAgentsFrontend (react-markdown) — non testo semplice. Il file
+// esportabile/condivisibile è una cosa diversa (vedi
+// reportRenderer.buildReportMarkdown), pensato per essere aperto fuori da
+// quest'app; qui è solo il rendering dentro la finestra di Desk stessa.
 export default function ArtifactPanel({ artifact, onSave, saving, savedPath }) {
   if (!artifact) return null;
 
@@ -73,14 +79,18 @@ export default function ArtifactPanel({ artifact, onSave, saving, savedPath }) {
       <div className="artifact-header">
         <strong>{artifact.title}</strong>
         <button type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Salvataggio..." : "Salva come HTML"}
+          {saving ? "Salvataggio..." : "Salva come Markdown"}
         </button>
       </div>
-      {artifact.summary && <p className="artifact-summary">{artifact.summary}</p>}
+      {artifact.summary && (
+        <div className="artifact-summary">
+          <Markdown>{artifact.summary}</Markdown>
+        </div>
+      )}
       {artifact.sections.map((section, i) => (
         <div key={i} className="artifact-section">
           <h4>{section.heading}</h4>
-          <p>{section.body}</p>
+          <Markdown>{section.body}</Markdown>
         </div>
       ))}
       {artifact.charts.map((chart, i) => (

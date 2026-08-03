@@ -117,15 +117,26 @@ button:disabled {
   padding: 0.5em 0.7em;
 }
 
-.artifacts-toggle-button {
-  background-color: #ffffff;
-  color: #396cd8;
-  border: 1px solid #396cd8;
-  font-size: 0.85em;
+/* Deliberatamente sommesso, non un pulsante primario: i documenti generati
+   sono già visibili dentro le risposte stesse (vedi ArtifactPanel); questo
+   è solo un modo secondario di ritrovarli tutti insieme, non il modo
+   principale di accorgersi che esistono. */
+.artifacts-toggle-link {
+  align-self: flex-start;
+  margin: 0.3rem 1rem 0;
+  padding: 0.2em 0;
+  background: none;
+  border: none;
+  color: #999999;
+  font-size: 0.75em;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.artifacts-toggle-button:hover {
-  background-color: #eef1fb;
+.artifacts-toggle-link:hover {
+  color: #396cd8;
+  background: none;
 }
 
 .artifacts-list {
@@ -443,9 +454,16 @@ button:disabled {
     background-color: #2a3350;
   }
 
-  .artifacts-toggle-button,
   .folder-button {
     background-color: #2a2a2a;
+  }
+
+  .artifacts-toggle-link {
+    color: #777777;
+  }
+
+  .artifacts-toggle-link:hover {
+    color: #6c8fe0;
   }
 
   .artifacts-list {

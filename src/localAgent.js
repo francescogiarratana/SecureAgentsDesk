@@ -17,9 +17,10 @@ export function getAuthorizedFolder() {
 // tool fulfilled_by=CLIENT: il backend non la richiede mai a metà turno),
 // quindi non passa da runLocalToolAction/LOCAL_TOOL_HANDLERS sotto — stessa
 // categoria di pickAuthorizedFolder/getAuthorizedFolder, non di
-// search_local_files/read_local_file.
-export function saveReportHtml(suggestedFileName, html) {
-  return invoke("save_report_html", { suggestedFileName, html });
+// search_local_files/read_local_file. Agnostico rispetto al formato (oggi
+// markdown) — chi chiama decide cosa c'è dentro `content`.
+export function saveGeneratedFile(suggestedFileName, content) {
+  return invoke("save_generated_file", { suggestedFileName, content });
 }
 
 // Mappa 1:1 con i tool registrati come fulfilled_by=CLIENT nel backend

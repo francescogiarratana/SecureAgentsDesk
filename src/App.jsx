@@ -14,9 +14,9 @@ import {
   getAuthorizedFolder,
   pickAuthorizedFolder,
   runLocalToolAction,
-  saveReportHtml,
+  saveGeneratedFile,
 } from "./localAgent";
-import { buildStandaloneReportHtml, suggestedReportFileName } from "./reportRenderer";
+import { buildReportMarkdown, suggestedReportFileName } from "./reportRenderer";
 import "./App.css";
 
 const ROLES = [
@@ -31,7 +31,7 @@ const ROLES = [
 // valore): qui cambia solo quanto l'agente spiega in anticipo (Con piano) e
 // quanto è silenzioso su letture/azioni locali già viste (Rapida).
 const MODES = [
-  { value: "guided", label: "Con piano" },
+  { value: "guided", label: "Pianifica" },
   { value: "standard", label: "Passo-passo" },
   { value: "fast", label: "Rapida" },
 ];
@@ -220,8 +220,8 @@ export default function App() {
   }
 
   async function saveArtifactToDisk(artifact) {
-    const html = buildStandaloneReportHtml(artifact);
-    const savedPath = await saveReportHtml(suggestedReportFileName(artifact), html);
+    const markdown = buildReportMarkdown(artifact);
+    const savedPath = await saveGeneratedFile(suggestedReportFileName(artifact), markdown);
     if (savedPath) {
       // Best-effort: il file è già stato scritto sul disco dell'utente a
       // questo punto — un log di audit mancato non deve bloccare né
@@ -319,19 +319,20 @@ export default function App() {
               </option>
             ))}
           </select>
-          <button onClick={handleToggleArtifactsList} className="artifacts-toggle-button">
-            Report
-          </button>
           <button onClick={handleAuthorizeFolder} className="folder-button">
             {authorizedFolder ? `Cartella: ${authorizedFolder}` : "Autorizza una cartella"}
           </button>
         </div>
       </header>
 
+      <button onClick={handleToggleArtifactsList} className="artifacts-toggle-link">
+        Documenti generati
+      </button>
+
       {showArtifactsList && (
         <div className="artifacts-list">
           {pastArtifacts.length === 0 ? (
-            <p className="artifacts-empty-hint">Nessun report generato finora in questa sessione.</p>
+            <p className="artifacts-empty-hint">Nessun documento generato finora in questa sessione.</p>
           ) : (
             pastArtifacts.map((a) => (
               <button

@@ -113,12 +113,14 @@ async fn pick_authorized_folder(app: AppHandle) -> Result<Option<String>, String
 }
 
 #[tauri::command]
-async fn save_report_html(
+async fn save_generated_file(
     app: AppHandle,
     suggested_file_name: String,
-    html: String,
+    content: String,
 ) -> Result<Option<String>, String> {
-    // Stesso pattern (oneshot + DialogExt, mai blocking_*) di
+    // Agnostico rispetto al formato (oggi markdown, forse in futuro un PDF
+    // esportato) — scrive semplicemente `content` così com'è dov'è l'utente
+    // a scegliere. Stesso pattern (oneshot + DialogExt, mai blocking_*) di
     // pick_authorized_folder, con save_file() al posto di pick_folder().
     // Deliberatamente NESSUN ensure_within_root qui: a differenza di
     // search_local_files/read_local_file (l'agente che legge dentro una
@@ -144,7 +146,7 @@ async fn save_report_html(
         .into_path()
         .map_err(|e| format!("Percorso di salvataggio non valido: {e}"))?;
 
-    fs::write(&path, html).map_err(|e| format!("Impossibile scrivere il file: {e}"))?;
+    fs::write(&path, content).map_err(|e| format!("Impossibile scrivere il file: {e}"))?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
@@ -370,7 +372,7 @@ pub fn run() {
             get_authorized_folder,
             search_local_files,
             read_local_file,
-            save_report_html,
+            save_generated_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
