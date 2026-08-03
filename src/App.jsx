@@ -1,6 +1,22 @@
 import { useEffect, useState } from "react";
-import { fetchToken, sendChatMessage, submitClientActionResult } from "./api";
-import { getAuthorizedFolder, pickAuthorizedFolder, runLocalToolAction } from "./localAgent";
+import {
+  fetchToken,
+  getArtifact,
+  listArtifacts,
+  reportArtifactSaved,
+  sendChatMessage,
+  submitClientActionResult,
+} from "./api";
+import ArtifactPanel from "./components/ArtifactPanel";
+import PlanPreview from "./components/PlanPreview";
+import ToolTrace from "./components/ToolTrace";
+import {
+  getAuthorizedFolder,
+  pickAuthorizedFolder,
+  runLocalToolAction,
+  saveReportHtml,
+} from "./localAgent";
+import { buildStandaloneReportHtml, suggestedReportFileName } from "./reportRenderer";
 import "./App.css";
 
 const ROLES = [
@@ -8,6 +24,18 @@ const ROLES = [
   { value: "HR", label: "Risorse Umane" },
   { value: "Management", label: "Management (Admin)" },
 ];
+
+// Tre modalità, un solo dial di frizione — MAI una variante che tocchi il
+// gate di approvazione umana sulle azioni WRITE (quello vive solo nel
+// backend, in policy_engine.evaluate, e non dipende in alcun modo da questo
+// valore): qui cambia solo quanto l'agente spiega in anticipo (Con piano) e
+// quanto è silenzioso su letture/azioni locali già viste (Rapida).
+const MODES = [
+  { value: "guided", label: "Con piano" },
+  { value: "standard", label: "Passo-passo" },
+  { value: "fast", label: "Rapida" },
+];
+const MODE_STORAGE_KEY = "secureagents-desk-mode";
 
 // Persistita in locale come nel frontend RAG (stesso motivo: in assenza di
 // un login reale per persona, è ciò che lega questo dispositivo a "un
@@ -24,12 +52,22 @@ function getOrCreateSessionId() {
   return sessionId;
 }
 
+function getStoredMode() {
+  const stored = localStorage.getItem(MODE_STORAGE_KEY);
+  return MODES.some((m) => m.value === stored) ? stored : "standard";
+}
+
 // Segue un turno finché non si conclude, eseguendo in locale ogni azione
 // client richiesta dal backend nel frattempo — questo è il "trampolino"
 // sincrono descritto in agent_loop.py: nessun WebSocket/SSE, solo una
 // seconda POST per ogni pausa, dal punto di vista di chi la implementa qui.
-async function runChatTurnToCompletion(token, chatCall, onToolRun) {
-  let response = await chatCall();
+//
+// Risolve SOLO awaiting_client_action da sola. awaiting_plan_confirmation
+// non passa mai da qui: quello stato lo risolve un click umano (Conferma/
+// Rifiuta in PlanPreview), non il client in automatico — confonderli
+// disattiverebbe la modalità "Con piano" in silenzio.
+async function runClientActionTrampoline(token, initialResponse, onToolRun) {
+  let response = initialResponse;
   while (response.status === "awaiting_client_action") {
     const action = response.awaiting_client_action;
     onToolRun?.(action);
@@ -46,6 +84,7 @@ export default function App() {
 
   const [authorizedFolder, setAuthorizedFolder] = useState(null);
   const [sessionId] = useState(getOrCreateSessionId);
+  const [mode, setMode] = useState(getStoredMode);
   const [conversationId, setConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [query, setQuery] = useState("");
@@ -53,9 +92,31 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
 
+  // Modalità "Con piano": il piano proposto aspetta un click umano prima
+  // che qualunque tool esegua per davvero. pendingPlanQuery viene da
+  // initialResponse.query (il backend la rimanda indietro identica),
+  // non da uno stato separato scollegato dalla risposta che ha originato
+  // il piano.
+  const [pendingPlan, setPendingPlan] = useState(null);
+  const [pendingPlanQuery, setPendingPlanQuery] = useState(null);
+
+  // Rapida: un tool già notificato una volta in questa sessione non produce
+  // più un avviso inline — solo una preferenza di UI, mai una scelta di
+  // policy (il trace resta comunque nel messaggio finale via ToolTrace).
+  const [seenToolNames, setSeenToolNames] = useState(() => new Set());
+
+  const [savingArtifactAt, setSavingArtifactAt] = useState(null);
+  const [showArtifactsList, setShowArtifactsList] = useState(false);
+  const [pastArtifacts, setPastArtifacts] = useState([]);
+  const [viewingArtifact, setViewingArtifact] = useState(null);
+
   useEffect(() => {
     getAuthorizedFolder().then(setAuthorizedFolder).catch(() => setAuthorizedFolder(null));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(MODE_STORAGE_KEY, mode);
+  }, [mode]);
 
   async function handleLogin(selectedRole) {
     setAuthError(null);
@@ -79,6 +140,38 @@ export default function App() {
     }
   }
 
+  function handleToolRun(action) {
+    const alreadySeen = seenToolNames.has(action.tool_name);
+    setSeenToolNames((prev) => new Set(prev).add(action.tool_name));
+    if (mode !== "fast" || !alreadySeen) {
+      setPendingNotice(`Eseguo in locale: ${action.tool_name}...`);
+    }
+  }
+
+  async function finishTurn(initialResponse) {
+    setConversationId(initialResponse.conversation_id);
+
+    if (initialResponse.status === "awaiting_plan_confirmation") {
+      setPendingPlan(initialResponse.proposed_plan);
+      // Il backend rimanda indietro la domanda originale identica in
+      // .query — è la fonte di verità da riusare alla conferma/rifiuto,
+      // non un testo tracciato separatamente lato client.
+      setPendingPlanQuery(initialResponse.query);
+      return;
+    }
+
+    const finalResponse = await runClientActionTrampoline(token, initialResponse, handleToolRun);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: finalResponse.response,
+        toolCalls: finalResponse.tool_calls,
+        artifact: finalResponse.artifact,
+      },
+    ]);
+  }
+
   async function handleSend(event) {
     event.preventDefault();
     const trimmed = query.trim();
@@ -91,18 +184,101 @@ export default function App() {
     setQuery("");
 
     try {
-      const finalResponse = await runChatTurnToCompletion(
-        token,
-        () => sendChatMessage(token, { query: trimmed, sessionId, conversationId }),
-        (action) => setPendingNotice(`Eseguo in locale: ${action.tool_name}...`),
-      );
-      setConversationId(finalResponse.conversation_id);
-      setMessages((prev) => [...prev, { role: "assistant", content: finalResponse.response }]);
+      const initial = await sendChatMessage(token, {
+        query: trimmed,
+        sessionId,
+        conversationId,
+        wantPlan: mode === "guided",
+      });
+      await finishTurn(initial);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
       setPendingNotice(null);
       setSending(false);
+    }
+  }
+
+  async function handlePlanDecision(decision) {
+    setPendingPlan(null);
+    setSending(true);
+    setError(null);
+    try {
+      const initial = await sendChatMessage(token, {
+        query: pendingPlanQuery,
+        sessionId,
+        conversationId,
+        planDecision: decision,
+      });
+      await finishTurn(initial);
+    } catch (err) {
+      setError(String(err?.message || err));
+    } finally {
+      setPendingNotice(null);
+      setSending(false);
+    }
+  }
+
+  async function saveArtifactToDisk(artifact) {
+    const html = buildStandaloneReportHtml(artifact);
+    const savedPath = await saveReportHtml(suggestedReportFileName(artifact), html);
+    if (savedPath) {
+      // Best-effort: il file è già stato scritto sul disco dell'utente a
+      // questo punto — un log di audit mancato non deve bloccare né
+      // confondere l'utente con un errore su un salvataggio già riuscito.
+      await reportArtifactSaved(token, sessionId, artifact.message_id, savedPath).catch(() => {});
+    }
+    return savedPath;
+  }
+
+  async function handleSaveArtifact(messageIndex, artifact) {
+    setSavingArtifactAt(messageIndex);
+    try {
+      const savedPath = await saveArtifactToDisk(artifact);
+      if (savedPath) {
+        setMessages((prev) =>
+          prev.map((m, i) => (i === messageIndex ? { ...m, savedPath } : m))
+        );
+      }
+    } catch (err) {
+      setError(String(err?.message || err));
+    } finally {
+      setSavingArtifactAt(null);
+    }
+  }
+
+  async function handleSaveViewingArtifact() {
+    if (!viewingArtifact) return;
+    setSavingArtifactAt("viewing");
+    try {
+      const savedPath = await saveArtifactToDisk(viewingArtifact);
+      if (savedPath) {
+        setViewingArtifact((prev) => (prev ? { ...prev, savedPath } : prev));
+      }
+    } catch (err) {
+      setError(String(err?.message || err));
+    } finally {
+      setSavingArtifactAt(null);
+    }
+  }
+
+  async function handleToggleArtifactsList() {
+    const next = !showArtifactsList;
+    setShowArtifactsList(next);
+    if (next) {
+      try {
+        setPastArtifacts(await listArtifacts(token, sessionId));
+      } catch (err) {
+        setError(String(err?.message || err));
+      }
+    }
+  }
+
+  async function handleViewPastArtifact(messageId) {
+    try {
+      setViewingArtifact(await getArtifact(token, sessionId, messageId));
+    } catch (err) {
+      setError(String(err?.message || err));
     }
   }
 
@@ -130,10 +306,61 @@ export default function App() {
           <strong>SecureAgents Desk</strong>
           <span className="role-chip">{role}</span>
         </div>
-        <button onClick={handleAuthorizeFolder} className="folder-button">
-          {authorizedFolder ? `Cartella: ${authorizedFolder}` : "Autorizza una cartella"}
-        </button>
+        <div className="header-actions">
+          <select
+            className="mode-select"
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+            title="Modalità"
+          >
+            {MODES.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <button onClick={handleToggleArtifactsList} className="artifacts-toggle-button">
+            Report
+          </button>
+          <button onClick={handleAuthorizeFolder} className="folder-button">
+            {authorizedFolder ? `Cartella: ${authorizedFolder}` : "Autorizza una cartella"}
+          </button>
+        </div>
       </header>
+
+      {showArtifactsList && (
+        <div className="artifacts-list">
+          {pastArtifacts.length === 0 ? (
+            <p className="artifacts-empty-hint">Nessun report generato finora in questa sessione.</p>
+          ) : (
+            pastArtifacts.map((a) => (
+              <button
+                key={a.message_id}
+                className="artifacts-list-item"
+                onClick={() => handleViewPastArtifact(a.message_id)}
+              >
+                {a.title}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      {viewingArtifact && (
+        <div className="modal-overlay" onClick={() => setViewingArtifact(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setViewingArtifact(null)}>
+              Chiudi
+            </button>
+            <ArtifactPanel
+              artifact={viewingArtifact}
+              onSave={handleSaveViewingArtifact}
+              saving={savingArtifactAt === "viewing"}
+              savedPath={viewingArtifact.savedPath}
+            />
+          </div>
+        </div>
+      )}
 
       <section className="chat-log">
         {messages.length === 0 && (
@@ -144,9 +371,26 @@ export default function App() {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`bubble bubble-${m.role}`}>
+            {m.role === "assistant" && <ToolTrace toolCalls={m.toolCalls} />}
             {m.content}
+            {m.artifact && (
+              <ArtifactPanel
+                artifact={m.artifact}
+                onSave={() => handleSaveArtifact(i, m.artifact)}
+                saving={savingArtifactAt === i}
+                savedPath={m.savedPath}
+              />
+            )}
           </div>
         ))}
+        {pendingPlan && (
+          <PlanPreview
+            plan={pendingPlan}
+            disabled={sending}
+            onConfirm={() => handlePlanDecision("confirm")}
+            onReject={() => handlePlanDecision("reject")}
+          />
+        )}
         {pendingNotice && <div className="bubble bubble-system">{pendingNotice}</div>}
         {error && <div className="bubble bubble-error">{error}</div>}
       </section>
@@ -156,9 +400,9 @@ export default function App() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Scrivi un messaggio..."
-          disabled={sending}
+          disabled={sending || Boolean(pendingPlan)}
         />
-        <button type="submit" disabled={sending || !query.trim()}>
+        <button type="submit" disabled={sending || Boolean(pendingPlan) || !query.trim()}>
           Invia
         </button>
       </form>

@@ -13,6 +13,15 @@ export function getAuthorizedFolder() {
   return invoke("get_authorized_folder");
 }
 
+// Chiamata direttamente dalla UI dopo che un turno è già concluso (non è un
+// tool fulfilled_by=CLIENT: il backend non la richiede mai a metà turno),
+// quindi non passa da runLocalToolAction/LOCAL_TOOL_HANDLERS sotto — stessa
+// categoria di pickAuthorizedFolder/getAuthorizedFolder, non di
+// search_local_files/read_local_file.
+export function saveReportHtml(suggestedFileName, html) {
+  return invoke("save_report_html", { suggestedFileName, html });
+}
+
 // Mappa 1:1 con i tool registrati come fulfilled_by=CLIENT nel backend
 // (search_local_files, read_local_file): se il backend ne aggiunge uno
 // nuovo, va aggiunto qui prima che questo client possa risolverlo.

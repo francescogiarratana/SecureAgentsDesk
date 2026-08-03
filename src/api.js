@@ -17,14 +17,20 @@ export async function fetchToken(role) {
   return res.json();
 }
 
-async function postJson(path, token, body) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
-    method: "POST",
+async function request(method, path, token, { body, params } = {}) {
+  const url = new URL(`${BACKEND_URL}${path}`);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) url.searchParams.set(key, value);
+    }
+  }
+  const res = await fetch(url, {
+    method,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
@@ -33,11 +39,24 @@ async function postJson(path, token, body) {
   return res.json();
 }
 
-export function sendChatMessage(token, { query, sessionId, conversationId }) {
+function postJson(path, token, body) {
+  return request("POST", path, token, { body });
+}
+
+function getJson(path, token, params) {
+  return request("GET", path, token, { params });
+}
+
+export function sendChatMessage(
+  token,
+  { query, sessionId, conversationId, wantPlan, planDecision }
+) {
   return postJson("/chat", token, {
     query,
     session_id: sessionId,
     conversation_id: conversationId ?? null,
+    want_plan: wantPlan ?? false,
+    plan_decision: planDecision ?? null,
   });
 }
 
@@ -45,5 +64,20 @@ export function submitClientActionResult(token, clientActionId, { result, error 
   return postJson(`/chat/client-actions/${clientActionId}/result`, token, {
     result: result ?? null,
     error: error ?? null,
+  });
+}
+
+export function listArtifacts(token, sessionId) {
+  return getJson("/artifacts", token, { session_id: sessionId });
+}
+
+export function getArtifact(token, sessionId, messageId) {
+  return getJson(`/artifacts/${messageId}`, token, { session_id: sessionId });
+}
+
+export function reportArtifactSaved(token, sessionId, messageId, savedPath) {
+  return request("POST", `/artifacts/${messageId}/saved`, token, {
+    params: { session_id: sessionId },
+    body: { saved_path: savedPath },
   });
 }
