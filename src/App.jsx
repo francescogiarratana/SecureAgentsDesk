@@ -7,16 +7,34 @@ import {
   getConversation,
   listArtifacts,
   listConversations,
+  listGoals,
+  cancelGoal,
   reportArtifactSaved,
   sendChatMessage,
+  fetchDocumentBySource,
   submitClientActionResult,
   submitSelfApprovalResult,
 } from "./api";
+import { renderMessageContent } from "./components/Citation";
+import GoalTimeline from "./components/GoalTimeline";
+import StepInspector from "./components/StepInspector";
 import ArtifactPanel from "./components/ArtifactPanel";
+import AttachMenu from "./components/AttachMenu";
+import ModeMenu from "./components/ModeMenu";
+import ModelMenu from "./components/ModelMenu";
 import ConversationSidebar from "./components/ConversationSidebar";
 import PlanPreview from "./components/PlanPreview";
 import SelfApprovalCard from "./components/SelfApprovalCard";
 import ToolTrace from "./components/ToolTrace";
+import {
+  ArrowUpIcon,
+  CheckIcon,
+  CopyIcon,
+  EditIcon,
+  FileGenericIcon,
+  ImageGenericIcon,
+  XIcon,
+} from "./components/ChatIcons";
 import {
   getAuthorizedFolder,
   pickAuthorizedFolder,
@@ -45,6 +63,24 @@ const MODES = [
   { value: "fast", label: "Rapida" },
 ];
 const MODE_STORAGE_KEY = "secureagents-desk-mode";
+
+const LLM_MODELS = [
+  { value: "gpt-5.6-luna", label: "GPT-Luna" },
+  { value: "gpt-5.6-sol", label: "GPT-Sol" },
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+  { value: "o3-mini", label: "o3-mini" },
+  { value: "o1", label: "o1" }
+];
+const REASONING_EFFORTS = [
+  { value: "low", label: "Basso" },
+  { value: "medium", label: "Medio" },
+  { value: "high", label: "Alto" }
+];
+
+function modelSupportsReasoningEffort(modelValue) {
+  return modelValue.startsWith("gpt-5") || modelValue.startsWith("o1") || modelValue.startsWith("o3");
+}
 
 // Persistita in locale come nel frontend RAG (stesso motivo: in assenza di
 // un login reale per persona, è ciò che lega questo dispositivo a "un
@@ -78,6 +114,7 @@ function messageFromHistory(message) {
     role: message.role,
     content: message.content,
     toolCalls: message.tool_calls || undefined,
+    citations: message.citations || [],
     artifact: message.artifact
       ? { ...message.artifact, message_id: message.id, created_at: message.created_at }
       : undefined,
@@ -120,6 +157,16 @@ export default function App() {
   const [pendingNotice, setPendingNotice] = useState(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const [activeGoal, setActiveGoal] = useState(null);
+  const [inspectedStep, setInspectedStep] = useState(null);
+
+  // Nuovi stati per UI avanzata
+  const [model, setModel] = useState("gpt-5.6-luna");
+  const [reasoningEffort, setReasoningEffort] = useState("medium");
+  const [attachments, setAttachments] = useState([]);
+  // Indice del messaggio appena copiato: solo per il feedback visivo
+  // transitorio dell'icona (Copia -> Copiato), azzerato da solo dopo 1.5s.
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   // Modalità "Con piano": il piano proposto aspetta un click umano prima
   // che qualunque tool esegua per davvero. pendingPlanQuery viene da
@@ -145,6 +192,17 @@ export default function App() {
   const [showArtifactsList, setShowArtifactsList] = useState(false);
   const [pastArtifacts, setPastArtifacts] = useState([]);
   const [viewingArtifact, setViewingArtifact] = useState(null);
+  const [viewingCitationDoc, setViewingCitationDoc] = useState(null);
+
+  async function handleOpenCitation(citation) {
+    try {
+      const data = await fetchDocumentBySource(token, sessionId, citation.source_ref);
+      setViewingCitationDoc(data);
+    } catch (err) {
+      console.error("Errore recupero fonte:", err);
+      setError(String(err?.message || err));
+    }
+  }
 
   // Chat passate (endpoint /conversations, già esistenti lato backend).
   const [conversations, setConversations] = useState([]);
@@ -178,9 +236,45 @@ export default function App() {
     setMessages([]);
     setPendingPlan(null);
     setPendingPlanQuery(null);
+    setAttachments([]);
     setPendingSelfApproval(null);
     setPendingNotice(null);
     setError(null);
+    setActiveGoal(null);
+    setInspectedStep(null);
+  }
+
+  function handleCopyMessage(index, content) {
+    navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex((prev) => (prev === index ? null : prev)), 1500);
+      })
+      .catch(() => {});
+  }
+
+  function handleEditQuestion(content) {
+    setQuery(content);
+  }
+
+  async function handleFileAttachment(e) {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            type: file.type.startsWith("image/") ? "image" : "document",
+            data: ev.target.result,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = null; // reset input
   }
 
   async function handleSelectConversation(id) {
@@ -195,6 +289,8 @@ export default function App() {
       setPendingPlanQuery(null);
       setPendingSelfApproval(null);
       setPendingNotice(null);
+      setActiveGoal(null);
+      setInspectedStep(null);
       setConversationId(detail.id);
       setMessages(detail.messages.map(messageFromHistory));
     } catch (err) {
@@ -244,6 +340,8 @@ export default function App() {
   }
 
   async function finishTurn(initialResponse) {
+    if (initialResponse.goal) setActiveGoal(initialResponse.goal);
+    
     setConversationId(initialResponse.conversation_id);
     // La conversazione (e il suo titolo, derivato dalla prima domanda) esiste
     // già lato server a questo punto, anche se il turno si mette in pausa:
@@ -265,12 +363,15 @@ export default function App() {
     }
 
     const finalResponse = await runClientActionTrampoline(token, initialResponse, handleToolRun);
+    if (finalResponse.goal) setActiveGoal(finalResponse.goal);
+    
     setMessages((prev) => [
       ...prev,
       {
         role: "assistant",
         content: finalResponse.response,
         toolCalls: finalResponse.tool_calls,
+        citations: finalResponse.citations || [],
         artifact: finalResponse.artifact,
       },
     ]);
@@ -303,7 +404,11 @@ export default function App() {
         sessionId,
         conversationId,
         wantPlan: mode === "guided",
+        model: model,
+        reasoningEffort: (model.startsWith("gpt-5") || model.startsWith("o1") || model.startsWith("o3")) ? reasoningEffort : undefined,
+        attachments: attachments,
       });
+      setAttachments([]);
       await finishTurn(initial);
     } catch (err) {
       setError(String(err?.message || err));
@@ -353,6 +458,15 @@ export default function App() {
       setSending(false);
     }
   }
+
+  const handleGoalCancel = async (goalId) => {
+    try {
+      await cancelGoal(token, goalId, sessionId);
+      setActiveGoal(prev => prev && prev.id === goalId ? { ...prev, status: 'CANCELLED' } : prev);
+    } catch (err) {
+      console.error('Errore annullamento goal:', err);
+    }
+  };
 
   async function saveArtifactMarkdownToDisk(artifact) {
     const markdown = buildReportMarkdown(artifact);
@@ -474,18 +588,6 @@ export default function App() {
           <span className="role-chip">{role}</span>
         </div>
         <div className="header-actions">
-          <select
-            className="mode-select"
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-            title="Modalità"
-          >
-            {MODES.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
           <button onClick={handleAuthorizeFolder} className="folder-button">
             {authorizedFolder ? `Cartella: ${authorizedFolder}` : "Autorizza una cartella"}
           </button>
@@ -537,6 +639,21 @@ export default function App() {
           </div>
         </div>
       )}
+      {viewingCitationDoc && (
+        <div className="modal-overlay" onClick={() => setViewingCitationDoc(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setViewingCitationDoc(null)}>
+              Chiudi
+            </button>
+            <div style={{ padding: '20px' }}>
+              <h2 style={{ marginTop: 0 }}>{viewingCitationDoc.title}</h2>
+              <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '13px', maxHeight: '60vh', overflowY: 'auto' }}>
+                {viewingCitationDoc.body}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="chat-log">
         {messages.length === 0 && (
@@ -549,16 +666,49 @@ export default function App() {
           <div key={i} className={`bubble bubble-${m.role}`}>
             {m.role === "assistant" && <ToolTrace toolCalls={m.toolCalls} />}
             {m.role === "assistant" ? (
-              // Stesso trattamento di SecureAgentsFrontend (renderMessageContent
-              // in Citation.jsx): il testo del modello è markdown vero (titoli,
-              // grassetto, elenchi...), non una stringa da mostrare alla lettera
-              // coi simboli #/** visibili. Solo l'assistente: un messaggio
-              // utente resta testo semplice, non deve essere interpretato.
               <div className="message-text">
-                <Markdown>{m.content}</Markdown>
+                {renderMessageContent(m.content, m.citations, handleOpenCitation)}
+                {m.citations && m.citations.length > 0 && (
+                  <div className="citations-block">
+                    <div className="citations-title">Fonti consultate</div>
+                    <ul className="citation-list">
+                      {m.citations.map((cit, idx) => (
+                        <li key={idx}>
+                          <button className="citation-btn" onClick={() => handleOpenCitation(cit)}>
+                            <span className="citation-list-index">{cit.index}</span> {cit.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="message-actions">
+                  <button
+                    type="button"
+                    className="message-action-btn"
+                    onClick={() => handleCopyMessage(i, m.content)}
+                    title="Copia"
+                  >
+                    {copiedIndex === i ? <CheckIcon size={14} /> : <CopyIcon />}
+                    {copiedIndex === i ? "Copiato" : "Copia"}
+                  </button>
+                </div>
               </div>
             ) : (
-              m.content
+              <div>
+                {m.content}
+                <div className="message-actions">
+                  <button
+                    type="button"
+                    className="message-action-btn"
+                    onClick={() => handleEditQuestion(m.content)}
+                    title="Modifica"
+                  >
+                    <EditIcon />
+                    Modifica
+                  </button>
+                </div>
+              </div>
             )}
             {m.artifact && (
               <ArtifactPanel
@@ -598,23 +748,86 @@ export default function App() {
         {error && <div className="bubble bubble-error">{error}</div>}
       </section>
 
-      <form className="composer" onSubmit={handleSend}>
-        <textarea
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          placeholder="Scrivi un messaggio... (Shift+Invio per andare a capo)"
-          disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
-          rows={1}
+      {activeGoal && (
+        <GoalTimeline
+          goal={activeGoal}
+          onCancel={handleGoalCancel}
+          onStepClick={(step) => setInspectedStep(step)}
         />
-        <button
-          type="submit"
-          disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval) || !query.trim()}
-        >
-          Invia
-        </button>
+      )}
+
+      <form className="composer" onSubmit={handleSend}>
+        <div className="composer-surface">
+          {attachments.length > 0 && (
+            <div className="attachment-pills">
+              {attachments.map((att, i) => (
+                <div key={i} className="attachment-pill">
+                  {att.type === "image" ? <ImageGenericIcon size={13} /> : <FileGenericIcon size={13} />}
+                  <span className="attachment-pill-name">{att.name}</span>
+                  <button
+                    type="button"
+                    className="attachment-pill-remove"
+                    onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                    title="Rimuovi allegato"
+                    aria-label="Rimuovi allegato"
+                  >
+                    <XIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <textarea
+            className="composer-textarea"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            placeholder="Scrivi un messaggio... (Shift+Invio per andare a capo)"
+            disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
+            rows={1}
+          />
+          <div className="composer-toolbar">
+            <AttachMenu
+              onFilesSelected={handleFileAttachment}
+              disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
+            />
+            <div className="composer-toolbar-spacer" />
+            <ModeMenu mode={mode} onModeChange={setMode} modes={MODES} disabled={sending} />
+            <ModelMenu
+              model={model}
+              onModelChange={setModel}
+              reasoningEffort={reasoningEffort}
+              onReasoningEffortChange={setReasoningEffort}
+              models={LLM_MODELS}
+              efforts={REASONING_EFFORTS}
+              showEffort={modelSupportsReasoningEffort(model)}
+              disabled={sending}
+            />
+            <button
+              type="submit"
+              className="composer-send-button"
+              disabled={
+                sending ||
+                Boolean(pendingPlan) ||
+                Boolean(pendingSelfApproval) ||
+                (!query.trim() && attachments.length === 0)
+              }
+              title="Invia"
+              aria-label="Invia"
+            >
+              <ArrowUpIcon />
+            </button>
+          </div>
+        </div>
       </form>
       </main>
+
+      {inspectedStep && (
+        <StepInspector
+          step={inspectedStep}
+          onClose={() => setInspectedStep(null)}
+        />
+      )}
     </div>
   );
 }

@@ -36,6 +36,7 @@ async function request(method, path, token, { body, params } = {}) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail || `Richiesta fallita (${res.status})`);
   }
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -49,7 +50,7 @@ function getJson(path, token, params) {
 
 export function sendChatMessage(
   token,
-  { query, sessionId, conversationId, wantPlan, planDecision }
+  { query, sessionId, conversationId, wantPlan, planDecision, model, reasoningEffort, attachments }
 ) {
   return postJson("/chat", token, {
     query,
@@ -57,6 +58,9 @@ export function sendChatMessage(
     conversation_id: conversationId ?? null,
     want_plan: wantPlan ?? false,
     plan_decision: planDecision ?? null,
+    model: model ?? null,
+    reasoning_effort: reasoningEffort ?? null,
+    attachments: attachments ?? [],
   });
 }
 
@@ -113,4 +117,20 @@ export function reportArtifactSaved(token, sessionId, messageId, savedPath) {
     params: { session_id: sessionId },
     body: { saved_path: savedPath },
   });
+}
+
+export function listGoals(token, conversationId, sessionId) {
+  return getJson("/goals", token, { conversation_id: conversationId, session_id: sessionId });
+}
+
+export function getGoal(token, goalId, sessionId) {
+  return getJson(`/goals/${goalId}`, token, { session_id: sessionId });
+}
+
+export function cancelGoal(token, goalId, sessionId) {
+  return request("POST", `/goals/${goalId}/cancel`, token, { params: { session_id: sessionId } });
+}
+
+export function fetchDocumentBySource(token, sessionId, sourceRef) {
+  return getJson(`/documents/by-source/${encodeURIComponent(sourceRef)}`, token, { session_id: sessionId });
 }

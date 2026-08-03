@@ -48,8 +48,8 @@ function ChartCanvas({ chart, index }) {
         datasets: chart.series.map((serie, i) => ({
           label: serie.name,
           data: serie.values,
-          backgroundColor: CHART_COLORS[(index + i) % CHART_COLORS.length],
-          borderColor: CHART_COLORS[(index + i) % CHART_COLORS.length],
+          backgroundColor: chart.type === 'pie' ? CHART_COLORS : CHART_COLORS[(index + i) % CHART_COLORS.length],
+          borderColor: chart.type === 'pie' ? CHART_COLORS : CHART_COLORS[(index + i) % CHART_COLORS.length],
         })),
       },
       options: { responsive: true, plugins: { title: { display: true, text: chart.title } } },

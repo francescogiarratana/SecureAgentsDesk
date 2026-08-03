@@ -22,6 +22,11 @@ export default function ToolTrace({ toolCalls }) {
             <span className="trace-tool-name">{call.tool_name}</span>
             <span className="trace-badge">{meta.label}</span>
             {call.decision === "DENY" && <span className="trace-reason">{call.reason}</span>}
+            {call.tool_name === "think" && call.arguments?.rationale && (
+              <div className="trace-thought" style={{color: "#888", fontStyle: "italic", marginLeft: "1rem", flexBasis: "100%"}}>
+                🤔 {call.arguments.rationale}
+              </div>
+            )}
           </div>
         );
       })}

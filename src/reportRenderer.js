@@ -47,5 +47,8 @@ export function buildReportMarkdown(artifact) {
 }
 
 export function suggestedReportFileName(artifact) {
+  if (artifact.suggested_filename) {
+    return artifact.suggested_filename.replace(/\.pdf$/, ".md");
+  }
   return `${slugifyTitle(artifact.title)}.md`;
 }

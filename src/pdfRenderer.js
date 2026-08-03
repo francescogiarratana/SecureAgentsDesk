@@ -144,5 +144,5 @@ export async function generateReportPdfBase64(artifact, chartImages = []) {
 }
 
 export function suggestedReportPdfFileName(artifact) {
-  return `${slugifyTitle(artifact.title)}.pdf`;
+  return artifact.suggested_filename || `${slugifyTitle(artifact.title)}.pdf`;
 }
