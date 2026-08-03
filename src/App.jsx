@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Markdown from "react-markdown";
 import {
   fetchToken,
   getArtifact,
@@ -415,7 +416,18 @@ export default function App() {
         {messages.map((m, i) => (
           <div key={i} className={`bubble bubble-${m.role}`}>
             {m.role === "assistant" && <ToolTrace toolCalls={m.toolCalls} />}
-            {m.content}
+            {m.role === "assistant" ? (
+              // Stesso trattamento di SecureAgentsFrontend (renderMessageContent
+              // in Citation.jsx): il testo del modello è markdown vero (titoli,
+              // grassetto, elenchi...), non una stringa da mostrare alla lettera
+              // coi simboli #/** visibili. Solo l'assistente: un messaggio
+              // utente resta testo semplice, non deve essere interpretato.
+              <div className="message-text">
+                <Markdown>{m.content}</Markdown>
+              </div>
+            ) : (
+              m.content
+            )}
             {m.artifact && (
               <ArtifactPanel
                 artifact={m.artifact}
