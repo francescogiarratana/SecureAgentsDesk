@@ -172,6 +172,16 @@ export default function App() {
     ]);
   }
 
+  function handleComposerKeyDown(event) {
+    // Invio da solo invia il messaggio (comportamento atteso di una chat);
+    // Shift+Invio inserisce un vero a capo — comportamento nativo di una
+    // textarea, che quindi qui va lasciato intatto (nessun preventDefault).
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend(event);
+    }
+  }
+
   async function handleSend(event) {
     event.preventDefault();
     const trimmed = query.trim();
@@ -397,11 +407,13 @@ export default function App() {
       </section>
 
       <form className="composer" onSubmit={handleSend}>
-        <input
+        <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Scrivi un messaggio..."
+          onKeyDown={handleComposerKeyDown}
+          placeholder="Scrivi un messaggio... (Shift+Invio per andare a capo)"
           disabled={sending || Boolean(pendingPlan)}
+          rows={1}
         />
         <button type="submit" disabled={sending || Boolean(pendingPlan) || !query.trim()}>
           Invia
