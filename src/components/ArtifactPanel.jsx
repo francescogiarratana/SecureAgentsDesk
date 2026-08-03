@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
+import { MarkdownFormatIcon, PdfFormatIcon, SpinnerIcon } from "./FormatIcons";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -67,20 +68,58 @@ function ChartCanvas({ chart, index }) {
 // Code/Perplexity: il documento generato è un allegato dentro il turno,
 // non qualcosa che si va a cercare altrove). Il testo (sintesi, sezioni) è
 // markdown vero, con lo stesso componente già usato per le risposte in
-// SecureAgentsFrontend (react-markdown) — non testo semplice. Il file
-// esportabile/condivisibile è una cosa diversa (vedi
-// reportRenderer.buildReportMarkdown), pensato per essere aperto fuori da
-// quest'app; qui è solo il rendering dentro la finestra di Desk stessa.
-export default function ArtifactPanel({ artifact, onSave, saving, savedPath }) {
+// SecureAgentsFrontend (react-markdown) — non testo semplice. I file
+// esportabili/condivisibili sono un'altra cosa (vedi reportRenderer.js per
+// il Markdown, pdfRenderer.js per il PDF), pensati per essere aperti fuori
+// da quest'app; qui è solo il rendering dentro la finestra di Desk stessa.
+export default function ArtifactPanel({
+  artifact,
+  onSaveMarkdown,
+  onSavePdf,
+  savingFormat,
+  savedMarkdownPath,
+  savedPdfPath,
+}) {
+  const panelRef = useRef(null);
   if (!artifact) return null;
 
+  // Il PDF (vedi pdfRenderer.buildReportPdfDefinition) porta i grafici come
+  // immagini: vanno catturate QUI, dal <canvas> live già renderizzato da
+  // ChartCanvas sotto, al momento del click — non c'è altro punto in cui
+  // esiste già un canvas disegnato da cui prendere i pixel.
+  function handleSavePdf() {
+    const chartImages = panelRef.current
+      ? Array.from(panelRef.current.querySelectorAll("canvas")).map((c) => c.toDataURL("image/png"))
+      : [];
+    onSavePdf(chartImages);
+  }
+
   return (
-    <div className="artifact-panel">
+    <div className="artifact-panel" ref={panelRef}>
       <div className="artifact-header">
         <strong>{artifact.title}</strong>
-        <button type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Salvataggio..." : "Salva come Markdown"}
-        </button>
+        <div className="artifact-save-actions">
+          <button
+            type="button"
+            className="artifact-save-icon-button"
+            title="Salva come Markdown"
+            aria-label="Salva come Markdown"
+            onClick={onSaveMarkdown}
+            disabled={Boolean(savingFormat)}
+          >
+            {savingFormat === "markdown" ? <SpinnerIcon /> : <MarkdownFormatIcon />}
+          </button>
+          <button
+            type="button"
+            className="artifact-save-icon-button"
+            title="Salva come PDF"
+            aria-label="Salva come PDF"
+            onClick={handleSavePdf}
+            disabled={Boolean(savingFormat)}
+          >
+            {savingFormat === "pdf" ? <SpinnerIcon /> : <PdfFormatIcon />}
+          </button>
+        </div>
       </div>
       {artifact.summary && (
         <div className="artifact-summary">
@@ -98,7 +137,13 @@ export default function ArtifactPanel({ artifact, onSave, saving, savedPath }) {
           <ChartCanvas chart={chart} index={i} />
         </div>
       ))}
-      {savedPath && <p className="artifact-saved-note">Salvato in: {savedPath}</p>}
+      {(savedMarkdownPath || savedPdfPath) && (
+        <p className="artifact-saved-note">
+          {savedMarkdownPath && <>Markdown salvato in: {savedMarkdownPath}</>}
+          {savedMarkdownPath && savedPdfPath && <br />}
+          {savedPdfPath && <>PDF salvato in: {savedPdfPath}</>}
+        </p>
+      )}
     </div>
   );
 }

@@ -514,6 +514,44 @@ button:disabled {
   margin-bottom: 0.4rem;
 }
 
+.artifact-save-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Icone, non pulsanti di testo: il formato si legge al passaggio del mouse
+   (title) — vedi ArtifactPanel.jsx e FormatIcons.jsx. */
+.artifact-save-icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background-color: #ffffff;
+  color: #555555;
+  border: 1px solid #d8d8d8;
+}
+
+.artifact-save-icon-button:hover:not(:disabled) {
+  background-color: #eef1fb;
+  color: #396cd8;
+  border-color: #396cd8;
+}
+
+.format-icon-spinner {
+  animation: format-icon-spin 0.8s linear infinite;
+}
+
+@keyframes format-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .artifact-summary {
   color: #555555;
   font-size: 0.9em;
@@ -656,5 +694,17 @@ button:disabled {
 
   .artifact-panel {
     border-color: #3a3a3a;
+  }
+
+  .artifact-save-icon-button {
+    background-color: #2a2a2a;
+    border-color: #444444;
+    color: #cccccc;
+  }
+
+  .artifact-save-icon-button:hover:not(:disabled) {
+    background-color: #2a3350;
+    color: #6c8fe0;
+    border-color: #6c8fe0;
   }
 }

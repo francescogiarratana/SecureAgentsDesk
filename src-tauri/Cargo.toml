@@ -30,4 +30,9 @@ tokio = { version = "1", features = ["sync"] }
 # basso livello: qui serve testo, non manipolazione della struttura PDF).
 pdf-extract = "0.12"
 calamine = "0.36"
+# Per save_generated_binary_file: un valore Stringa JS non può portare byte
+# binari arbitrari (es. un PDF esportato) sopra l'IPC di Tauri senza
+# corrompersi, quindi il contenuto arriva già codificato in base64 e va
+# decodificato prima di scrivere i byte grezzi su disco.
+base64 = "0.23"
 

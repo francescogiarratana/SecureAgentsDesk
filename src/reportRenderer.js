@@ -5,8 +5,17 @@
 // differenza di un .html generato — non è mai eseguibile: nessuna difesa
 // da XSS necessaria qui (un .html con Chart.js inlineato era la versione
 // precedente di questo file; l'utente ha chiesto di passare al markup
-// usato per SecureAgents RAG). La conversione in PDF resta un passo
-// successivo deliberatamente rimandato, non implementato ora.
+// usato per SecureAgents RAG). Il salvataggio come PDF (vedi pdfRenderer.js,
+// che riusa slugifyTitle sotto) parte dagli stessi dati strutturati
+// dell'artifact, non da questa stringa Markdown.
+
+export function slugifyTitle(title) {
+  const slug = title
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-|-$)/g, "");
+  return slug || "report";
+}
 
 function chartToMarkdownTable(chart) {
   const header = `| ${chart.title} |` + chart.series.map((s) => ` ${s.name} |`).join("");
@@ -38,9 +47,5 @@ export function buildReportMarkdown(artifact) {
 }
 
 export function suggestedReportFileName(artifact) {
-  const slug = artifact.title
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, "-")
-    .replaceAll(/(^-|-$)/g, "");
-  return `${slug || "report"}.md`;
+  return `${slugifyTitle(artifact.title)}.md`;
 }

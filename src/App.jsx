@@ -17,8 +17,10 @@ import {
   getAuthorizedFolder,
   pickAuthorizedFolder,
   runLocalToolAction,
+  saveGeneratedBinaryFile,
   saveGeneratedFile,
 } from "./localAgent";
+import { generateReportPdfBase64, suggestedReportPdfFileName } from "./pdfRenderer";
 import { buildReportMarkdown, suggestedReportFileName } from "./reportRenderer";
 import "./App.css";
 
@@ -262,7 +264,7 @@ export default function App() {
     }
   }
 
-  async function saveArtifactToDisk(artifact) {
+  async function saveArtifactMarkdownToDisk(artifact) {
     const markdown = buildReportMarkdown(artifact);
     const savedPath = await saveGeneratedFile(suggestedReportFileName(artifact), markdown);
     if (savedPath) {
@@ -274,13 +276,29 @@ export default function App() {
     return savedPath;
   }
 
-  async function handleSaveArtifact(messageIndex, artifact) {
-    setSavingArtifactAt(messageIndex);
+  async function saveArtifactPdfToDisk(artifact, chartImages) {
+    const base64 = await generateReportPdfBase64(artifact, chartImages);
+    const savedPath = await saveGeneratedBinaryFile(suggestedReportPdfFileName(artifact), base64);
+    if (savedPath) {
+      await reportArtifactSaved(token, sessionId, artifact.message_id, savedPath).catch(() => {});
+    }
+    return savedPath;
+  }
+
+  // format è "markdown" o "pdf": stessa forma di stato/tracciamento per
+  // entrambi, la sola differenza è quale funzione di salvataggio e quale
+  // campo di messages/viewingArtifact aggiornare al termine.
+  async function handleSaveArtifact(messageIndex, artifact, format, chartImages) {
+    setSavingArtifactAt(`${messageIndex}:${format}`);
     try {
-      const savedPath = await saveArtifactToDisk(artifact);
+      const savedPath =
+        format === "pdf"
+          ? await saveArtifactPdfToDisk(artifact, chartImages)
+          : await saveArtifactMarkdownToDisk(artifact);
       if (savedPath) {
+        const pathField = format === "pdf" ? "savedPdfPath" : "savedMarkdownPath";
         setMessages((prev) =>
-          prev.map((m, i) => (i === messageIndex ? { ...m, savedPath } : m))
+          prev.map((m, i) => (i === messageIndex ? { ...m, [pathField]: savedPath } : m))
         );
       }
     } catch (err) {
@@ -290,13 +308,17 @@ export default function App() {
     }
   }
 
-  async function handleSaveViewingArtifact() {
+  async function handleSaveViewingArtifact(format, chartImages) {
     if (!viewingArtifact) return;
-    setSavingArtifactAt("viewing");
+    setSavingArtifactAt(`viewing:${format}`);
     try {
-      const savedPath = await saveArtifactToDisk(viewingArtifact);
+      const savedPath =
+        format === "pdf"
+          ? await saveArtifactPdfToDisk(viewingArtifact, chartImages)
+          : await saveArtifactMarkdownToDisk(viewingArtifact);
       if (savedPath) {
-        setViewingArtifact((prev) => (prev ? { ...prev, savedPath } : prev));
+        const pathField = format === "pdf" ? "savedPdfPath" : "savedMarkdownPath";
+        setViewingArtifact((prev) => (prev ? { ...prev, [pathField]: savedPath } : prev));
       }
     } catch (err) {
       setError(String(err?.message || err));
@@ -398,9 +420,17 @@ export default function App() {
             </button>
             <ArtifactPanel
               artifact={viewingArtifact}
-              onSave={handleSaveViewingArtifact}
-              saving={savingArtifactAt === "viewing"}
-              savedPath={viewingArtifact.savedPath}
+              onSaveMarkdown={() => handleSaveViewingArtifact("markdown")}
+              onSavePdf={(chartImages) => handleSaveViewingArtifact("pdf", chartImages)}
+              savingFormat={
+                savingArtifactAt === "viewing:markdown"
+                  ? "markdown"
+                  : savingArtifactAt === "viewing:pdf"
+                    ? "pdf"
+                    : null
+              }
+              savedMarkdownPath={viewingArtifact.savedMarkdownPath}
+              savedPdfPath={viewingArtifact.savedPdfPath}
             />
           </div>
         </div>
@@ -431,9 +461,17 @@ export default function App() {
             {m.artifact && (
               <ArtifactPanel
                 artifact={m.artifact}
-                onSave={() => handleSaveArtifact(i, m.artifact)}
-                saving={savingArtifactAt === i}
-                savedPath={m.savedPath}
+                onSaveMarkdown={() => handleSaveArtifact(i, m.artifact, "markdown")}
+                onSavePdf={(chartImages) => handleSaveArtifact(i, m.artifact, "pdf", chartImages)}
+                savingFormat={
+                  savingArtifactAt === `${i}:markdown`
+                    ? "markdown"
+                    : savingArtifactAt === `${i}:pdf`
+                      ? "pdf"
+                      : null
+                }
+                savedMarkdownPath={m.savedMarkdownPath}
+                savedPdfPath={m.savedPdfPath}
               />
             )}
           </div>

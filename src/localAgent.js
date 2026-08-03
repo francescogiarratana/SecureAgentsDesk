@@ -23,6 +23,15 @@ export function saveGeneratedFile(suggestedFileName, content) {
   return invoke("save_generated_file", { suggestedFileName, content });
 }
 
+// Come saveGeneratedFile, ma per contenuto binario (oggi: un report
+// esportato come PDF) — Tauri non può portare byte arbitrari dentro un
+// parametro Stringa senza corromperli, quindi chi chiama passa già una
+// stringa base64 e save_generated_binary_file lato Rust la decodifica
+// prima di scrivere i byte grezzi su disco (vedi src-tauri/src/lib.rs).
+export function saveGeneratedBinaryFile(suggestedFileName, contentBase64) {
+  return invoke("save_generated_binary_file", { suggestedFileName, contentBase64 });
+}
+
 // Mappa 1:1 con i tool registrati come fulfilled_by=CLIENT nel backend
 // (search_local_files, read_local_file): se il backend ne aggiunge uno
 // nuovo, va aggiunto qui prima che questo client possa risolverlo.

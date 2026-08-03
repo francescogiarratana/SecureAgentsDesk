@@ -112,26 +112,27 @@ async fn pick_authorized_folder(app: AppHandle) -> Result<Option<String>, String
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-#[tauri::command]
-async fn save_generated_file(
-    app: AppHandle,
-    suggested_file_name: String,
-    content: String,
-) -> Result<Option<String>, String> {
-    // Agnostico rispetto al formato (oggi markdown, forse in futuro un PDF
-    // esportato) — scrive semplicemente `content` così com'è dov'è l'utente
-    // a scegliere. Stesso pattern (oneshot + DialogExt, mai blocking_*) di
-    // pick_authorized_folder, con save_file() al posto di pick_folder().
-    // Deliberatamente NESSUN ensure_within_root qui: a differenza di
-    // search_local_files/read_local_file (l'agente che legge dentro una
-    // cartella già autorizzata), questo è un salvataggio scelto e confermato
-    // dall'utente stesso tramite il selettore nativo del sistema operativo —
-    // lo stesso confine di fiducia già accettato per pick_authorized_folder,
-    // non l'agente che scrive a un percorso arbitrario di sua scelta.
+/// Mostra il selettore di salvataggio nativo e risolve nel percorso scelto
+/// (None se l'utente annulla) — condiviso da save_generated_file e
+/// save_generated_binary_file, che differiscono solo in COSA scrivono una
+/// volta ottenuto il percorso (testo vs byte binari decodificati).
+///
+/// Stesso pattern (oneshot + DialogExt, mai blocking_*) di
+/// pick_authorized_folder, con save_file() al posto di pick_folder().
+/// Deliberatamente NESSUN ensure_within_root qui: a differenza di
+/// search_local_files/read_local_file (l'agente che legge dentro una
+/// cartella già autorizzata), questo è un salvataggio scelto e confermato
+/// dall'utente stesso tramite il selettore nativo del sistema operativo —
+/// lo stesso confine di fiducia già accettato per pick_authorized_folder,
+/// non l'agente che scrive a un percorso arbitrario di sua scelta.
+async fn prompt_save_file_path(
+    app: &AppHandle,
+    suggested_file_name: &str,
+) -> Result<Option<PathBuf>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_file_name(&suggested_file_name)
+        .set_file_name(suggested_file_name)
         .save_file(move |path| {
             let _ = tx.send(path);
         });
@@ -145,8 +146,50 @@ async fn save_generated_file(
     let path = selected
         .into_path()
         .map_err(|e| format!("Percorso di salvataggio non valido: {e}"))?;
+    Ok(Some(path))
+}
 
+/// Isolata dal comando Tauri per essere testabile senza il selettore nativo
+/// (vedi i test in fondo al file): un base64 non valido deve tornare un
+/// errore chiaro, non un panic o byte silenziosamente sbagliati su disco.
+fn decode_base64_content(content_base64: &str) -> Result<Vec<u8>, String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    STANDARD
+        .decode(content_base64)
+        .map_err(|e| format!("Contenuto base64 non valido: {e}"))
+}
+
+#[tauri::command]
+async fn save_generated_file(
+    app: AppHandle,
+    suggested_file_name: String,
+    content: String,
+) -> Result<Option<String>, String> {
+    // Agnostico rispetto al formato testuale (oggi markdown) — scrive
+    // semplicemente `content` così com'è dov'è l'utente a scegliere. Per
+    // contenuto binario (es. un PDF esportato) vedi save_generated_binary_file
+    // sotto: un valore Stringa JS non può portare byte binari arbitrari senza
+    // corrompersi, va incapsulato in base64 invece.
+    let Some(path) = prompt_save_file_path(&app, &suggested_file_name).await? else {
+        return Ok(None);
+    };
     fs::write(&path, content).map_err(|e| format!("Impossibile scrivere il file: {e}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+async fn save_generated_binary_file(
+    app: AppHandle,
+    suggested_file_name: String,
+    content_base64: String,
+) -> Result<Option<String>, String> {
+    // Stesso comando/pattern di save_generated_file, ma per contenuto
+    // binario (oggi: un report esportato come PDF) — vedi decode_base64_content.
+    let Some(path) = prompt_save_file_path(&app, &suggested_file_name).await? else {
+        return Ok(None);
+    };
+    let bytes = decode_base64_content(&content_base64)?;
+    fs::write(&path, bytes).map_err(|e| format!("Impossibile scrivere il file: {e}"))?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
@@ -373,6 +416,7 @@ pub fn run() {
             search_local_files,
             read_local_file,
             save_generated_file,
+            save_generated_binary_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -604,5 +648,25 @@ mod tests {
         assert!(result.starts_with(&"a".repeat(10)));
         assert!(!result.starts_with(&"a".repeat(11)));
         assert!(result.contains("troncato"));
+    }
+
+    #[test]
+    fn decode_base64_content_round_trips_binary_bytes() {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        // Byte non validi come UTF-8 (0xFF, 0xFE...) — esattamente il tipo
+        // di contenuto (un PDF) per cui questo comando esiste, a differenza
+        // di save_generated_file che assume testo valido.
+        let original: Vec<u8> = vec![0x25, 0x50, 0x44, 0x46, 0xFF, 0xFE, 0x00, 0x01];
+        let encoded = STANDARD.encode(&original);
+
+        let decoded = decode_base64_content(&encoded).expect("base64 valido deve decodificare");
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn decode_base64_content_fails_gracefully_on_invalid_input() {
+        let err = decode_base64_content("non e' base64 valido! ***")
+            .expect_err("un input non-base64 deve tornare un errore, non panicare");
+        assert!(err.contains("base64"));
     }
 }
