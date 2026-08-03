@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import {
+  deleteConversation,
   fetchToken,
   getArtifact,
+  getConversation,
   listArtifacts,
+  listConversations,
   reportArtifactSaved,
   sendChatMessage,
   submitClientActionResult,
   submitSelfApprovalResult,
 } from "./api";
 import ArtifactPanel from "./components/ArtifactPanel";
+import ConversationSidebar from "./components/ConversationSidebar";
 import PlanPreview from "./components/PlanPreview";
 import SelfApprovalCard from "./components/SelfApprovalCard";
 import ToolTrace from "./components/ToolTrace";
@@ -60,6 +64,24 @@ function getOrCreateSessionId() {
 function getStoredMode() {
   const stored = localStorage.getItem(MODE_STORAGE_KEY);
   return MODES.some((m) => m.value === stored) ? stored : "standard";
+}
+
+// Riporta un messaggio salvato (MessageOut dal backend) nella forma che usa
+// la chat in memoria. Punto delicato: Message.artifact su DB contiene solo
+// ciò che ha prodotto build_report_artifact ({title, summary, sections,
+// charts}) — NON message_id né created_at, che invece vengono dalla riga del
+// messaggio. Senza reiniettarli qui, riaprire una chat passata e premere
+// "salva" romperebbe (reportArtifactSaved riceverebbe un message_id
+// undefined, e il piè di pagina del report una data non valida).
+function messageFromHistory(message) {
+  return {
+    role: message.role,
+    content: message.content,
+    toolCalls: message.tool_calls || undefined,
+    artifact: message.artifact
+      ? { ...message.artifact, message_id: message.id, created_at: message.created_at }
+      : undefined,
+  };
 }
 
 // Segue un turno finché non si conclude, eseguendo in locale ogni azione
@@ -124,6 +146,10 @@ export default function App() {
   const [pastArtifacts, setPastArtifacts] = useState([]);
   const [viewingArtifact, setViewingArtifact] = useState(null);
 
+  // Chat passate (endpoint /conversations, già esistenti lato backend).
+  const [conversations, setConversations] = useState([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   useEffect(() => {
     getAuthorizedFolder().then(setAuthorizedFolder).catch(() => setAuthorizedFolder(null));
   }, []);
@@ -131,6 +157,61 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(MODE_STORAGE_KEY, mode);
   }, [mode]);
+
+  useEffect(() => {
+    if (!token) return;
+    // Best-effort: se l'elenco non si carica, la chat resta perfettamente
+    // usabile — non vale un messaggio d'errore in faccia all'utente.
+    listConversations(token, sessionId).then(setConversations).catch(() => {});
+  }, [token, sessionId]);
+
+  async function refreshConversations() {
+    try {
+      setConversations(await listConversations(token, sessionId));
+    } catch {
+      // vedi sopra: silenzioso di proposito
+    }
+  }
+
+  function startNewChat() {
+    setConversationId(null);
+    setMessages([]);
+    setPendingPlan(null);
+    setPendingPlanQuery(null);
+    setPendingSelfApproval(null);
+    setPendingNotice(null);
+    setError(null);
+  }
+
+  async function handleSelectConversation(id) {
+    if (id === conversationId || sending) return;
+    setError(null);
+    try {
+      const detail = await getConversation(token, sessionId, id);
+      // Una chat riaperta non ha pause pendenti: quelle vivono solo dentro un
+      // turno in corso e, se erano rimaste appese, sono comunque scadute
+      // (vedi i TTL in agent_loop.py).
+      setPendingPlan(null);
+      setPendingPlanQuery(null);
+      setPendingSelfApproval(null);
+      setPendingNotice(null);
+      setConversationId(detail.id);
+      setMessages(detail.messages.map(messageFromHistory));
+    } catch (err) {
+      setError(String(err?.message || err));
+    }
+  }
+
+  async function handleDeleteConversation(id) {
+    if (!window.confirm("Eliminare questa chat? L'operazione non è reversibile.")) return;
+    try {
+      await deleteConversation(token, sessionId, id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (id === conversationId) startNewChat();
+    } catch (err) {
+      setError(String(err?.message || err));
+    }
+  }
 
   async function handleLogin(selectedRole) {
     setAuthError(null);
@@ -164,6 +245,10 @@ export default function App() {
 
   async function finishTurn(initialResponse) {
     setConversationId(initialResponse.conversation_id);
+    // La conversazione (e il suo titolo, derivato dalla prima domanda) esiste
+    // già lato server a questo punto, anche se il turno si mette in pausa:
+    // l'elenco va aggiornato comunque, non solo sui turni conclusi.
+    refreshConversations();
 
     if (initialResponse.status === "awaiting_plan_confirmation") {
       setPendingPlan(initialResponse.proposed_plan);
@@ -365,7 +450,19 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <div className="app-layout">
+      <ConversationSidebar
+        conversations={conversations}
+        activeConversationId={conversationId}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+        onNewChat={startNewChat}
+        onSelect={handleSelectConversation}
+        onDelete={handleDeleteConversation}
+        disabled={sending}
+      />
+
+      <main className="app-shell">
       <header className="app-header">
         <div>
           <strong>SecureAgents Desk</strong>
@@ -512,6 +609,7 @@ export default function App() {
           Invia
         </button>
       </form>
-    </main>
+      </main>
+    </div>
   );
 }

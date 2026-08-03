@@ -75,6 +75,23 @@ export function submitSelfApprovalResult(token, selfApprovalId, decision) {
   return postJson(`/chat/self-approvals/${selfApprovalId}/result`, token, { decision });
 }
 
+// Le chat passate: endpoint già esistenti e testati lato backend (vedi
+// app/api/v1/chat.py) che finora solo il frontend web usava — Desk le
+// ignorava, perdendo tutto lo storico alla chiusura dell'app.
+export function listConversations(token, sessionId) {
+  return getJson("/conversations", token, { session_id: sessionId });
+}
+
+export function getConversation(token, sessionId, conversationId) {
+  return getJson(`/conversations/${conversationId}`, token, { session_id: sessionId });
+}
+
+export function deleteConversation(token, sessionId, conversationId) {
+  return request("DELETE", `/conversations/${conversationId}`, token, {
+    params: { session_id: sessionId },
+  });
+}
+
 export function listArtifacts(token, sessionId) {
   return getJson("/artifacts", token, { session_id: sessionId });
 }

@@ -68,10 +68,133 @@ button:disabled {
   margin-top: 1rem;
 }
 
+.app-layout {
+  height: 100vh;
+  display: flex;
+}
+
 .app-shell {
+  flex: 1;
+  min-width: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* --- Sidebar chat passate --------------------------------------------- */
+
+.conversation-sidebar {
+  width: 15rem;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e0e0e0;
+  background-color: #fafafa;
+  overflow: hidden;
+}
+
+.conversation-sidebar.collapsed {
+  width: auto;
+  padding: 0.75rem 0.5rem;
+  align-items: center;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.75rem 0.6rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.sidebar-toggle {
+  background-color: transparent;
+  color: #777777;
+  border: none;
+  padding: 0.3em 0.5em;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.sidebar-toggle:hover {
+  background-color: #eef1fb;
+  color: #396cd8;
+}
+
+.new-chat-button {
+  flex: 1;
+  font-size: 0.85em;
+  padding: 0.5em 0.7em;
+}
+
+.conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.conversation-empty-hint {
+  color: #999999;
+  font-size: 0.8em;
+  padding: 0.4rem 0.3rem;
+  margin: 0;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.conversation-item:hover {
+  background-color: #eef1fb;
+}
+
+.conversation-item.active {
+  background-color: #e3e9f8;
+}
+
+.conversation-item-open {
+  flex: 1;
+  min-width: 0;
+  background-color: transparent;
+  color: #1a1a1a;
+  border: none;
+  text-align: left;
+  font-weight: 400;
+  font-size: 0.85em;
+  padding: 0.5em 0.6em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-item-open:hover {
+  background-color: transparent;
+}
+
+/* Visibile solo al passaggio del mouse: cancellare una chat è distruttivo,
+   non deve essere il bersaglio più facile da centrare per sbaglio. */
+.conversation-item-delete {
+  background-color: transparent;
+  color: #999999;
+  border: none;
+  padding: 0.3em 0.5em;
+  font-size: 1em;
+  line-height: 1;
+  opacity: 0;
+}
+
+.conversation-item:hover .conversation-item-delete {
+  opacity: 1;
+}
+
+.conversation-item-delete:hover {
+  background-color: transparent;
+  color: #c0392b;
 }
 
 .app-header {
@@ -618,6 +741,32 @@ button:disabled {
   .composer {
     background-color: #262626;
     border-color: #3a3a3a;
+  }
+
+  .conversation-sidebar {
+    background-color: #202020;
+    border-color: #3a3a3a;
+  }
+
+  .sidebar-header {
+    border-color: #3a3a3a;
+  }
+
+  .conversation-item:hover {
+    background-color: #2a3350;
+  }
+
+  .conversation-item.active {
+    background-color: #313c5e;
+  }
+
+  .conversation-item-open {
+    color: #f0f0f0;
+  }
+
+  .sidebar-toggle:hover {
+    background-color: #2a3350;
+    color: #6c8fe0;
   }
 
   .bubble-assistant {
