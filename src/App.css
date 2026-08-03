@@ -604,15 +604,48 @@ button:disabled {
   font-size: 0.8em;
 }
 
-.self-approval-description {
-  font-weight: 500;
-  margin: 0 0 0.2rem;
+.self-approval-card {
+  width: 34rem;
 }
 
-.self-approval-details {
-  color: #555555;
+.self-approval-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.self-approval-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.self-approval-field-label {
+  font-size: 0.75em;
+  color: #777777;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.self-approval-field-edited {
+  color: #8a6d00;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.self-approval-field input,
+.self-approval-field textarea {
+  width: 100%;
   font-size: 0.9em;
-  margin: 0 0 0.6rem;
+  padding: 0.45em 0.6em;
+}
+
+.self-approval-field textarea {
+  resize: vertical;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 .self-approval-actions {
@@ -827,13 +860,24 @@ button:disabled {
 
   .plan-goal,
   .artifact-summary,
-  .trace-tool-name,
-  .self-approval-details {
+  .trace-tool-name {
     color: #bbbbbb;
   }
 
-  .self-approval-note {
+  .self-approval-note,
+  .self-approval-field-label {
     color: #888888;
+  }
+
+  .self-approval-field input,
+  .self-approval-field textarea {
+    background-color: #1f1f1f;
+    border-color: #444444;
+    color: #f0f0f0;
+  }
+
+  .self-approval-field-edited {
+    color: #d9b34d;
   }
 
   .trace-self-approval .trace-badge {

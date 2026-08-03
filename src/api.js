@@ -71,8 +71,16 @@ export function submitClientActionResult(token, clientActionId, { result, error 
 // un'azione WRITE a rischio contenuto (calendario/email propri — vedi
 // approval_track="self" in agent_router.py) — diverso dalla coda di
 // approvazione Management, che vive in SecureAgentsFrontend, non qui.
-export function submitSelfApprovalResult(token, selfApprovalId, decision) {
-  return postJson(`/chat/self-approvals/${selfApprovalId}/result`, token, { decision });
+// approvedArgs: il contenuto come l'utente lo ha effettivamente approvato,
+// eventualmente corretto nella card. Il backend lo filtra alle sole chiavi
+// dello schema del tool e lo ri-valida prima di eseguire (vedi
+// policy_engine.sanitize_tool_arguments) — non è fidato solo perché arriva
+// dalla nostra UI.
+export function submitSelfApprovalResult(token, selfApprovalId, decision, approvedArgs = null) {
+  return postJson(`/chat/self-approvals/${selfApprovalId}/result`, token, {
+    decision,
+    approved_args: approvedArgs,
+  });
 }
 
 // Le chat passate: endpoint già esistenti e testati lato backend (vedi

@@ -333,13 +333,18 @@ export default function App() {
     }
   }
 
-  async function handleSelfApprovalDecision(decision) {
+  async function handleSelfApprovalDecision(decision, approvedArgs = null) {
     const selfApprovalId = pendingSelfApproval.id;
     setPendingSelfApproval(null);
     setSending(true);
     setError(null);
     try {
-      const resumed = await submitSelfApprovalResult(token, selfApprovalId, decision);
+      const resumed = await submitSelfApprovalResult(
+        token,
+        selfApprovalId,
+        decision,
+        approvedArgs
+      );
       await finishTurn(resumed);
     } catch (err) {
       setError(String(err?.message || err));
@@ -585,7 +590,7 @@ export default function App() {
           <SelfApprovalCard
             selfApproval={pendingSelfApproval}
             disabled={sending}
-            onConfirm={() => handleSelfApprovalDecision("confirm")}
+            onConfirm={(approvedArgs) => handleSelfApprovalDecision("confirm", approvedArgs)}
             onReject={() => handleSelfApprovalDecision("reject")}
           />
         )}
