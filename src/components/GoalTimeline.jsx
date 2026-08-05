@@ -31,13 +31,14 @@ function formatDuration(ms) {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export default function GoalTimeline({ goal, onCancel, onStepClick }) {
+export default function GoalTimeline({ goal, onCancel, onRollback, onStepClick }) {
   if (!goal) return null;
 
   const completedCount = goal.steps.filter(s => s.status === 'COMPLETED').length;
   const totalSteps = goal.steps.length;
   const goalConfig = GOAL_STATUS_CONFIG[goal.status] || GOAL_STATUS_CONFIG.PLANNING;
   const canCancel = ['CONFIRMED', 'IN_PROGRESS'].includes(goal.status);
+  const canRollback = ['IN_PROGRESS', 'COMPLETED', 'FAILED'].includes(goal.status);
 
   return (
     <div className="goal-timeline">
@@ -52,11 +53,18 @@ export default function GoalTimeline({ goal, onCancel, onStepClick }) {
             <span className="goal-progress">{completedCount}/{totalSteps} completati</span>
           )}
         </div>
-        {canCancel && (
-          <button className="goal-cancel-btn" onClick={() => onCancel(goal.id)} title="Annulla obiettivo">
-            ✕ Annulla
-          </button>
-        )}
+        <div className="goal-header-actions">
+          {canCancel && (
+            <button className="goal-cancel-btn" onClick={() => onCancel(goal.id)} title="Annulla obiettivo">
+              ✕ Annulla
+            </button>
+          )}
+          {canRollback && onRollback && (
+            <button className="goal-cancel-btn" onClick={() => onRollback(goal.id)} title="Time Machine: Annulla Modifiche" style={{ background: '#ff3b30', color: 'white', marginLeft: '8px' }}>
+              ⏪ Rollback
+            </button>
+          )}
+        </div>
       </div>
 
       {totalSteps > 0 && (

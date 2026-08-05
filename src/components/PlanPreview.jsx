@@ -23,7 +23,7 @@ function stepRiskLabel(step) {
   return RISK_LABELS[step.risk] || step.risk;
 }
 
-export default function PlanPreview({ plan, onConfirm, onReject, disabled }) {
+export default function PlanPreview({ plan, onConfirm, onReject, onRollback, disabled }) {
   if (!plan) return null;
 
   return (
@@ -57,6 +57,11 @@ export default function PlanPreview({ plan, onConfirm, onReject, disabled }) {
         <button type="button" onClick={onConfirm} disabled={disabled}>
           Conferma ed esegui
         </button>
+        {onRollback && (
+          <button type="button" onClick={onRollback} disabled={disabled} style={{ background: '#ff3b30', color: 'white' }}>
+            ⏪ Annulla modifiche (Time Machine)
+          </button>
+        )}
       </div>
     </div>
   );

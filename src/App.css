@@ -42,7 +42,7 @@ button:hover {
 }
 
 button:disabled {
-  background-color: #a9b8dd;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -1834,4 +1834,602 @@ button:disabled {
   .citation-popup::after {
     border-top-color: #555;
   }
+}
+
+.dictation-button.listening {
+  color: #ffffff;
+  background-color: #ef4444 !important;
+}
+
+.pulse-mic {
+  animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+
+/* --- Apple-inspired Aesthetic --- */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.login-screen, .app-shell, .conversation-sidebar {
+  background-color: transparent;
+}
+
+.conversation-sidebar {
+  background-color: rgba(245, 245, 247, 0.8);
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.app-header.glass-header {
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.clear-session-link {
+  background: transparent;
+  color: #86868b;
+  border: none;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.clear-session-link:hover {
+  background: transparent;
+  color: #1d1d1f;
+}
+
+.apple-welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 400px;
+}
+
+.apple-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+  margin-bottom: 1.5rem;
+}
+
+.apple-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: #1d1d1f;
+}
+
+.role-picker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.error-text {
+  color: #c0392b;
+  margin-top: 1rem;
+}
+
+.apple-subtitle {
+  font-size: 1rem;
+  color: #86868b;
+  margin: 0 0 2.5rem 0;
+}
+
+.apple-button {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #1d1d1f;
+  border: none;
+  border-radius: 999px;
+  padding: 0.8rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  width: auto;
+}
+
+.apple-button:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+.bubble {
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+.bubble-user {
+  background-color: #007aff;
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-assistant {
+  background-color: #ffffff;
+  color: #1d1d1f;
+  border-bottom-left-radius: 4px;
+}
+
+.composer-surface {
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.composer-send-button {
+  background-color: #007aff;
+}
+
+.composer-send-button:hover {
+  background-color: #005bb5;
+}
+
+.role-chip {
+  background-color: rgba(0, 122, 255, 0.1);
+  color: #007aff;
+}
+
+/* --- Apple-inspired Dark Mode --- */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #000000;
+    color: #f5f5f7;
+  }
+
+  .conversation-sidebar {
+    background-color: rgba(28, 28, 30, 0.8);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .app-header.glass-header {
+    background-color: rgba(28, 28, 30, 0.7);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .apple-title {
+    color: #f5f5f7;
+  }
+
+  .apple-subtitle {
+    color: #98989d;
+  }
+
+  .apple-button {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+  }
+
+  .apple-button:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .bubble-assistant {
+    background-color: #1c1c1e;
+    color: #f5f5f7;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .bubble-system {
+    background-color: #2c2c2e;
+    color: #f5f5f7;
+  }
+  
+  .bubble-error {
+    background-color: #3a1c1e;
+    color: #ff453a;
+  }
+
+  .composer-surface {
+    background-color: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .composer-surface:focus-within {
+    border-color: #0a84ff;
+  }
+
+  .composer-textarea {
+    color: #f5f5f7;
+  }
+
+  input, textarea, button {
+    color: inherit;
+  }
+
+  .trace-tool-name {
+    color: #98989d;
+  }
+
+  .trace-allow .trace-badge {
+    background-color: rgba(48, 209, 88, 0.15);
+    color: #30d158;
+  }
+
+  .trace-client .trace-badge {
+    background-color: rgba(10, 132, 255, 0.15);
+    color: #0a84ff;
+  }
+
+  .trace-reason {
+    color: #636366;
+  }
+
+  .conversation-item-open {
+    color: #f5f5f7;
+  }
+
+  .conversation-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .conversation-item.active {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .folder-button, .pill-menu-trigger, .composer-icon-button {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #f5f5f7;
+  }
+
+  .folder-button:hover, .pill-menu-trigger:hover:not(:disabled), .composer-icon-button:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #0a84ff;
+    border-color: #0a84ff;
+  }
+  
+  .clear-session-link:hover {
+    color: #f5f5f7;
+  }
+  
+  .bubble-user {
+    background-color: #0a84ff;
+  }
+  
+  .composer-send-button {
+    background-color: #0a84ff;
+  }
+  
+  .composer-send-button:hover {
+    background-color: #0071e3;
+  }
+
+  .role-chip {
+    background-color: rgba(10, 132, 255, 0.15);
+    color: #0a84ff;
+  }
+}
+
+/* --- Typing Indicator --- */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  width: fit-content;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .typing-indicator {
+    background: transparent;
+    border: none;
+  }
+}
+
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #98989d;
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* --- Automation Panel --- */
+.automation-panel {
+  padding: 0.5rem 0;
+}
+
+.automation-panel-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.automation-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.automation-item {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  transition: opacity 0.2s;
+}
+
+.automation-item.inactive {
+  opacity: 0.45;
+}
+
+.automation-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.automation-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1d1d1f;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.automation-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.toggle-track {
+  display: block;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: #d1d1d6;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.automation-toggle.active .toggle-track {
+  background: #34c759;
+}
+
+.toggle-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.automation-toggle.active .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.automation-meta {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: #86868b;
+}
+
+.automation-status.completed {
+  color: #34c759;
+}
+
+.automation-status.failed {
+  color: #ff3b30;
+}
+
+/* --- Event Replay --- */
+.event-replay {
+  margin-top: 0.5rem;
+}
+
+.event-replay-toggle {
+  background: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  color: #007aff;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: left;
+}
+
+.event-replay-toggle:hover {
+  background: rgba(0, 122, 255, 0.05);
+}
+
+.event-timeline {
+  margin-top: 0.5rem;
+  border-left: 2px solid rgba(0, 122, 255, 0.2);
+  padding-left: 0.75rem;
+}
+
+.event-item {
+  padding: 0.4rem 0;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+
+.event-item:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.event-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.event-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.event-label {
+  font-weight: 500;
+  color: #1d1d1f;
+  flex: 1;
+}
+
+.event-time {
+  font-size: 0.7rem;
+  color: #86868b;
+  font-variant-numeric: tabular-nums;
+}
+
+.event-detail {
+  margin-top: 0.3rem;
+}
+
+.event-data {
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+  padding: 0.5rem;
+  overflow-x: auto;
+  max-height: 200px;
+  color: #424245;
+  line-height: 1.4;
+}
+
+.event-empty {
+  font-size: 0.8rem;
+  color: #86868b;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* --- Dark mode per automation & events --- */
+@media (prefers-color-scheme: dark) {
+  .automation-label {
+    color: #f5f5f7;
+  }
+
+  .automation-item {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .toggle-track {
+    background: #48484a;
+  }
+
+  .event-replay-toggle {
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #0a84ff;
+  }
+
+  .event-replay-toggle:hover {
+    background: rgba(10, 132, 255, 0.1);
+  }
+
+  .event-timeline {
+    border-left-color: rgba(10, 132, 255, 0.3);
+  }
+
+  .event-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .event-label {
+    color: #f5f5f7;
+  }
+
+  .event-data {
+    background: rgba(255, 255, 255, 0.05);
+    color: #d1d1d6;
+  }
+}
+
+/* Dual Mode UI: Plan vs Build */
+.app-shell.mode-plan {
+  transition: background-color 0.5s ease;
+}
+
+.app-shell.mode-build {
+  transition: background-color 0.5s ease;
+}
+
+/* Quando l'agente è in modalità scrittura (Build), coloriamo leggermente di arancione la sidebar e altri elementi per richiamare attenzione */
+.app-shell.mode-build .sidebar {
+  background-color: rgba(255, 149, 0, 0.05); /* Apple Orange con molta trasparenza */
+  border-right: 1px solid rgba(255, 149, 0, 0.2);
+}
+
+.app-shell.mode-build .glass-header {
+  border-bottom: 1px solid rgba(255, 149, 0, 0.2);
+}
+
+.app-shell.mode-build .conversation-title {
+  color: #ff9500;
+}
+
+.app-shell.mode-build .app-header {
+  background-color: rgba(255, 149, 0, 0.02);
 }

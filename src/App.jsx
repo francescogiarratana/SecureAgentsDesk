@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Markdown from "react-markdown";
 import {
   deleteConversation,
@@ -14,6 +14,9 @@ import {
   fetchDocumentBySource,
   submitClientActionResult,
   submitSelfApprovalResult,
+  sendChatMessageStream,
+  submitClientActionResultStream,
+  submitSelfApprovalResultStream,
 } from "./api";
 import { renderMessageContent } from "./components/Citation";
 import GoalTimeline from "./components/GoalTimeline";
@@ -132,15 +135,35 @@ function messageFromHistory(message) {
 // client in automatico — confonderli disattiverebbe la modalità "Con piano"
 // o, peggio, farebbe eseguire un'azione WRITE senza un vero consenso
 // esplicito dell'utente.
-async function runClientActionTrampoline(token, initialResponse, onToolRun) {
-  let response = initialResponse;
-  while (response.status === "awaiting_client_action") {
-    const action = response.awaiting_client_action;
-    onToolRun?.(action);
-    const outcome = await runLocalToolAction(action.tool_name, action.tool_args);
-    response = await submitClientActionResult(token, action.id, outcome);
+async function runClientActionTrampoline(token, initialStream, onToolRun, onChunk) {
+  let currentStream = initialStream;
+  let finalResponse = null;
+
+  while (currentStream) {
+    let turnResult = null;
+    for await (const chunk of currentStream) {
+      if (onChunk) onChunk(chunk);
+      if (chunk.type === "turn_end") {
+        turnResult = chunk.result;
+      }
+    }
+
+    if (!turnResult) {
+      break;
+    }
+
+    if (turnResult.status === "awaiting_client_action") {
+      const action = turnResult.awaiting_client_action;
+      onToolRun?.(action);
+      const outcome = await runLocalToolAction(action.tool_name, action.tool_args);
+      currentStream = submitClientActionResultStream(token, action.id, outcome);
+    } else {
+      finalResponse = turnResult;
+      currentStream = null;
+    }
   }
-  return response;
+  
+  return finalResponse;
 }
 
 export default function App() {
@@ -155,7 +178,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [query, setQuery] = useState("");
   const [pendingNotice, setPendingNotice] = useState(null);
-  const [sending, setSending] = useState(false);
+  const [loadingChats, setLoadingChats] = useState({});
+  const activeConversationIdRef = useRef(conversationId);
+  useEffect(() => {
+    activeConversationIdRef.current = conversationId;
+  }, [conversationId]);
+  const sending = !!loadingChats[conversationId || 'new'];
   const [error, setError] = useState(null);
   const [activeGoal, setActiveGoal] = useState(null);
   const [inspectedStep, setInspectedStep] = useState(null);
@@ -339,48 +367,82 @@ export default function App() {
     }
   }
 
-  async function finishTurn(initialResponse) {
-    if (initialResponse.goal) setActiveGoal(initialResponse.goal);
+  async function finishTurn(stream, targetChatId) {
+    let currentAssistantMessage = { role: "assistant", content: "", toolCalls: [], citations: [], tempId: Date.now() };
     
-    setConversationId(initialResponse.conversation_id);
-    // La conversazione (e il suo titolo, derivato dalla prima domanda) esiste
-    // già lato server a questo punto, anche se il turno si mette in pausa:
-    // l'elenco va aggiornato comunque, non solo sui turni conclusi.
-    refreshConversations();
-
-    if (initialResponse.status === "awaiting_plan_confirmation") {
-      setPendingPlan(initialResponse.proposed_plan);
-      // Il backend rimanda indietro la domanda originale identica in
-      // .query — è la fonte di verità da riusare alla conferma/rifiuto,
-      // non un testo tracciato separatamente lato client.
-      setPendingPlanQuery(initialResponse.query);
-      return;
+    // Add the empty message to the UI if we are on the active conversation
+    if (activeConversationIdRef.current === targetChatId || (targetChatId === 'new' && activeConversationIdRef.current === null)) {
+      setMessages(prev => [...prev, currentAssistantMessage]);
     }
 
-    if (initialResponse.status === "awaiting_self_approval") {
-      setPendingSelfApproval(initialResponse.awaiting_self_approval);
-      return;
-    }
+    const onChunk = (chunk) => {
+      // Only update UI if this stream belongs to the active conversation
+      const isActive = activeConversationIdRef.current === targetChatId || (targetChatId === 'new' && activeConversationIdRef.current === null) || (activeConversationIdRef.current === chunk.result?.conversation_id);
+      
+      if (chunk.type === "content_delta") {
+        currentAssistantMessage.content += chunk.delta;
+      } else if (chunk.type === "error") {
+        throw new Error(chunk.detail || "Errore durante lo streaming dal server.");
+      } else if (chunk.type === "turn_end" && chunk.result) {
+        currentAssistantMessage.content = chunk.result.response || currentAssistantMessage.content;
+        currentAssistantMessage.citations = chunk.result.citations || [];
+        currentAssistantMessage.artifact = chunk.result.artifact;
+        currentAssistantMessage.toolCalls = chunk.result.tool_calls || currentAssistantMessage.toolCalls;
+      }
+      // UI update
+      if (isActive) {
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastIdx = newMessages.length - 1;
+          if (lastIdx >= 0 && newMessages[lastIdx].tempId === currentAssistantMessage.tempId) {
+              newMessages[lastIdx] = { ...currentAssistantMessage };
+          } else {
+              // fallback in case it was somehow removed or we are updating a different message
+              newMessages.push({ ...currentAssistantMessage });
+          }
+          return newMessages;
+        });
+      }
+    };
 
-    const finalResponse = await runClientActionTrampoline(token, initialResponse, handleToolRun);
-    if (finalResponse.goal) setActiveGoal(finalResponse.goal);
-    
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: finalResponse.response,
-        toolCalls: finalResponse.tool_calls,
-        citations: finalResponse.citations || [],
-        artifact: finalResponse.artifact,
-      },
-    ]);
+    try {
+      const finalResponse = await runClientActionTrampoline(token, stream, handleToolRun, onChunk);
+      
+      if (finalResponse) {
+        if (finalResponse.goal) setActiveGoal(finalResponse.goal);
+        
+        const newActiveId = finalResponse.conversation_id;
+        if (targetChatId === 'new' && activeConversationIdRef.current === null) {
+          setConversationId(newActiveId);
+          activeConversationIdRef.current = newActiveId;
+        }
+        
+        refreshConversations();
+
+        if (finalResponse.status === "awaiting_plan_confirmation") {
+          if (activeConversationIdRef.current === newActiveId) {
+            setPendingPlan(finalResponse.proposed_plan);
+            setPendingPlanQuery(finalResponse.query);
+          }
+          return;
+        }
+
+        if (finalResponse.status === "awaiting_self_approval") {
+          if (activeConversationIdRef.current === newActiveId) {
+            setPendingSelfApproval(finalResponse.awaiting_self_approval);
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      if (!currentAssistantMessage.content) {
+        setMessages(prev => prev.filter(m => m.tempId !== currentAssistantMessage.tempId));
+      }
+      throw err;
+    }
   }
 
   function handleComposerKeyDown(event) {
-    // Invio da solo invia il messaggio (comportamento atteso di una chat);
-    // Shift+Invio inserisce un vero a capo — comportamento nativo di una
-    // textarea, che quindi qui va lasciato intatto (nessun preventDefault).
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleSend(event);
@@ -392,14 +454,16 @@ export default function App() {
     const trimmed = query.trim();
     if (!trimmed || sending) return;
 
-    setSending(true);
+    const chatTargetId = conversationId || 'new';
+    setLoadingChats(prev => ({ ...prev, [chatTargetId]: true }));
     setError(null);
     setPendingNotice(null);
+    
     setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
     setQuery("");
 
     try {
-      const initial = await sendChatMessage(token, {
+      const stream = sendChatMessageStream(token, {
         query: trimmed,
         sessionId,
         conversationId,
@@ -409,53 +473,55 @@ export default function App() {
         attachments: attachments,
       });
       setAttachments([]);
-      await finishTurn(initial);
+      await finishTurn(stream, chatTargetId);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
       setPendingNotice(null);
-      setSending(false);
+      setLoadingChats(prev => ({ ...prev, [chatTargetId]: false }));
     }
   }
 
   async function handlePlanDecision(decision) {
     setPendingPlan(null);
-    setSending(true);
+    const chatTargetId = conversationId;
+    setLoadingChats(prev => ({ ...prev, [chatTargetId]: true }));
     setError(null);
     try {
-      const initial = await sendChatMessage(token, {
+      const stream = sendChatMessageStream(token, {
         query: pendingPlanQuery,
         sessionId,
         conversationId,
         planDecision: decision,
       });
-      await finishTurn(initial);
+      await finishTurn(stream, chatTargetId);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
       setPendingNotice(null);
-      setSending(false);
+      setLoadingChats(prev => ({ ...prev, [chatTargetId]: false }));
     }
   }
 
   async function handleSelfApprovalDecision(decision, approvedArgs = null) {
     const selfApprovalId = pendingSelfApproval.id;
     setPendingSelfApproval(null);
-    setSending(true);
+    const chatTargetId = conversationId;
+    setLoadingChats(prev => ({ ...prev, [chatTargetId]: true }));
     setError(null);
     try {
-      const resumed = await submitSelfApprovalResult(
+      const stream = submitSelfApprovalResultStream(
         token,
         selfApprovalId,
         decision,
         approvedArgs
       );
-      await finishTurn(resumed);
+      await finishTurn(stream, chatTargetId);
     } catch (err) {
       setError(String(err?.message || err));
     } finally {
       setPendingNotice(null);
-      setSending(false);
+      setLoadingChats(prev => ({ ...prev, [chatTargetId]: false }));
     }
   }
 
@@ -578,7 +644,7 @@ export default function App() {
         onNewChat={startNewChat}
         onSelect={handleSelectConversation}
         onDelete={handleDeleteConversation}
-        disabled={sending}
+        disabled={false}
       />
 
       <main className="app-shell">
@@ -664,36 +730,46 @@ export default function App() {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`bubble bubble-${m.role}`}>
-            {m.role === "assistant" && <ToolTrace toolCalls={m.toolCalls} />}
             {m.role === "assistant" ? (
-              <div className="message-text">
-                {renderMessageContent(m.content, m.citations, handleOpenCitation)}
-                {m.citations && m.citations.length > 0 && (
-                  <div className="citations-block">
-                    <div className="citations-title">Fonti consultate</div>
-                    <ul className="citation-list">
-                      {m.citations.map((cit, idx) => (
-                        <li key={idx}>
-                          <button className="citation-btn" onClick={() => handleOpenCitation(cit)}>
-                            <span className="citation-list-index">{cit.index}</span> {cit.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
+              <>
+                <ToolTrace toolCalls={m.toolCalls} />
+                <div className="message-text">
+                  {!m.content ? (
+                    <div className="typing-indicator">
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                    </div>
+                  ) : (
+                    renderMessageContent(m.content, m.citations, handleOpenCitation)
+                  )}
+                  {m.citations && m.citations.length > 0 && (
+                    <div className="citations-block">
+                      <div className="citations-title">Fonti consultate</div>
+                      <ul className="citation-list">
+                        {m.citations.map((cit, idx) => (
+                          <li key={idx}>
+                            <button className="citation-btn" onClick={() => handleOpenCitation(cit)}>
+                              <span className="citation-list-index">{cit.index}</span> {cit.title}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="message-actions">
+                    <button
+                      type="button"
+                      className="message-action-btn"
+                      onClick={() => handleCopyMessage(i, m.content)}
+                      title="Copia"
+                    >
+                      {copiedIndex === i ? <CheckIcon size={14} /> : <CopyIcon />}
+                      {copiedIndex === i ? "Copiato" : "Copia"}
+                    </button>
                   </div>
-                )}
-                <div className="message-actions">
-                  <button
-                    type="button"
-                    className="message-action-btn"
-                    onClick={() => handleCopyMessage(i, m.content)}
-                    title="Copia"
-                  >
-                    {copiedIndex === i ? <CheckIcon size={14} /> : <CopyIcon />}
-                    {copiedIndex === i ? "Copiato" : "Copia"}
-                  </button>
                 </div>
-              </div>
+              </>
             ) : (
               <div>
                 {m.content}
@@ -731,7 +807,7 @@ export default function App() {
         {pendingPlan && (
           <PlanPreview
             plan={pendingPlan}
-            disabled={sending}
+            disabled={false}
             onConfirm={() => handlePlanDecision("confirm")}
             onReject={() => handlePlanDecision("reject")}
           />
@@ -739,7 +815,7 @@ export default function App() {
         {pendingSelfApproval && (
           <SelfApprovalCard
             selfApproval={pendingSelfApproval}
-            disabled={sending}
+            disabled={false}
             onConfirm={(approvedArgs) => handleSelfApprovalDecision("confirm", approvedArgs)}
             onReject={() => handleSelfApprovalDecision("reject")}
           />
@@ -792,7 +868,7 @@ export default function App() {
               disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
             />
             <div className="composer-toolbar-spacer" />
-            <ModeMenu mode={mode} onModeChange={setMode} modes={MODES} disabled={sending} />
+            <ModeMenu mode={mode} onModeChange={setMode} modes={MODES} disabled={false} />
             <ModelMenu
               model={model}
               onModelChange={setModel}
@@ -801,7 +877,7 @@ export default function App() {
               models={LLM_MODELS}
               efforts={REASONING_EFFORTS}
               showEffort={modelSupportsReasoningEffort(model)}
-              disabled={sending}
+              disabled={false}
             />
             <button
               type="submit"
