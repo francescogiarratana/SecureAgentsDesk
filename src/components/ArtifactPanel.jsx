@@ -82,6 +82,12 @@ export default function ArtifactPanel({
 }) {
   const panelRef = useRef(null);
   if (!artifact) return null;
+  const hasContent = Boolean(
+    (artifact.summary && artifact.summary.trim()) ||
+      (artifact.sections && artifact.sections.length > 0) ||
+      (artifact.charts && artifact.charts.length > 0)
+  );
+  if (!hasContent) return null;
 
   // Il PDF (vedi pdfRenderer.buildReportPdfDefinition) porta i grafici come
   // immagini: vanno catturate QUI, dal <canvas> live già renderizzato da

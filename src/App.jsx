@@ -28,6 +28,7 @@ import ModelMenu from "./components/ModelMenu";
 import ConversationSidebar from "./components/ConversationSidebar";
 import PlanPreview from "./components/PlanPreview";
 import SelfApprovalCard from "./components/SelfApprovalCard";
+import DictationButton from "./components/DictationButton";
 import ToolTrace from "./components/ToolTrace";
 import {
   ArrowUpIcon,
@@ -388,6 +389,11 @@ export default function App() {
         currentAssistantMessage.citations = chunk.result.citations || [];
         currentAssistantMessage.artifact = chunk.result.artifact;
         currentAssistantMessage.toolCalls = chunk.result.tool_calls || currentAssistantMessage.toolCalls;
+        if (chunk.result.conversation_id && (targetChatId === 'new' && activeConversationIdRef.current === null)) {
+          setConversationId(chunk.result.conversation_id);
+          activeConversationIdRef.current = chunk.result.conversation_id;
+        }
+        refreshConversations();
       }
       // UI update
       if (isActive) {
@@ -878,6 +884,12 @@ export default function App() {
               efforts={REASONING_EFFORTS}
               showEffort={modelSupportsReasoningEffort(model)}
               disabled={false}
+            />
+            <DictationButton
+              onDictationResult={(transcript) =>
+                setQuery((prev) => (prev ? `${prev} ${transcript}` : transcript))
+              }
+              disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
             />
             <button
               type="submit"

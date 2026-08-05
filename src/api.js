@@ -140,11 +140,9 @@ export function submitClientActionResult(token, clientActionId, { result, error 
   });
 }
 
-export function submitClientActionResultStream(token, clientActionId, { result, error }) {
-  return postStream(`/chat/client-actions/${clientActionId}/result/stream`, token, {
-    result: result ?? null,
-    error: error ?? null,
-  });
+export async function* submitClientActionResultStream(token, clientActionId, { result, error }) {
+  const res = await submitClientActionResult(token, clientActionId, { result, error });
+  yield { type: "turn_end", result: res };
 }
 
 // Conferma/rifiuto della STESSA persona che ha avviato la conversazione per
@@ -163,11 +161,9 @@ export function submitSelfApprovalResult(token, selfApprovalId, decision, approv
   });
 }
 
-export function submitSelfApprovalResultStream(token, selfApprovalId, decision, approvedArgs = null) {
-  return postStream(`/chat/self-approvals/${selfApprovalId}/result/stream`, token, {
-    decision,
-    approved_args: approvedArgs,
-  });
+export async function* submitSelfApprovalResultStream(token, selfApprovalId, decision, approvedArgs = null) {
+  const res = await submitSelfApprovalResult(token, selfApprovalId, decision, approvedArgs);
+  yield { type: "turn_end", result: res };
 }
 
 // Le chat passate: endpoint già esistenti e testati lato backend (vedi
