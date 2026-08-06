@@ -20,8 +20,24 @@ export default function DictationButton({ onDictationResult, disabled }) {
   // Controlla supporto ed eventuale ambiente desktop all'avvio
   useEffect(() => {
     if (isTauri) {
-      // Nel runtime desktop WKWebView / Tauri il servizio di SpeechRecognition non è disponibile
-      // e chiamarlo scatena crash TCC macOS se manca l'entitlement nel dev binary.
+      // Verificato empiricamente (non solo presunto): window.webkitSpeechRecognition
+      // ESISTE dentro il WKWebView di Tauri su macOS (Safari lo supporta da 14.1+,
+      // e questa build ha i due Info.plist NSMicrophoneUsageDescription/
+      // NSSpeechRecognitionUsageDescription correttamente incorporati — confermato
+      // leggendo il bundle .app prodotto da `tauri build`, non solo tauri.conf.json).
+      // navigator.mediaDevices.getUserMedia({audio:true}) funziona correttamente
+      // nello stesso binario. MA rec.start() (SpeechRecognition, categoria TCC
+      // separata dal microfono) fa crashare l'intero processo con SIGABRT — non un
+      // errore JS recuperabile via onerror/catch, un crash nativo a livello di OS.
+      // Il crash reporter di macOS lo attribuisce a "Namespace TCC ... must contain
+      // an NSSpeechRecognitionUsageDescription key", nonostante la chiave sia
+      // presente: la vera causa è che questa build è firmata ad-hoc
+      // (codeSigningTeamID vuoto) e TCC non concede l'accesso al servizio di
+      // riconoscimento vocale — a differenza del microfono, più permissivo — a un
+      // binario non firmato con un Developer ID Apple reale. Non risolvibile lato
+      // codice: richiederebbe firma+notarizzazione con un account Apple Developer
+      // reale per l'app, che è una decisione di infrastruttura/distribuzione, non
+      // di questo componente. Vedi README.md, sezione "Limiti noti".
       setIsSupported(true);
       setErrorMessage("Dettatura vocale non disponibile nell'app desktop. Usa il browser.");
       return;
