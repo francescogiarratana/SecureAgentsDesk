@@ -5,6 +5,18 @@
 export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
 
+// Nessun token: deve essere leggibile anche prima del login, per poter
+// segnalare un backend disallineato o irraggiungibile già dalla schermata
+// di accesso (vedi src/version.js e il controllo in App.jsx — §3.4 del
+// piano pilota).
+export async function fetchHealth() {
+  const res = await fetch(`${BACKEND_URL}/health`);
+  if (!res.ok) {
+    throw new Error(`Backend non raggiungibile (${res.status}).`);
+  }
+  return res.json();
+}
+
 export async function fetchToken(role) {
   const res = await fetch(`${BACKEND_URL}/auth/token`, {
     method: "POST",

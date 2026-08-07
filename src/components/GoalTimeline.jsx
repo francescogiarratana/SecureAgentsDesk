@@ -34,8 +34,9 @@ function formatDuration(ms) {
 export default function GoalTimeline({ goal, onCancel, onRollback, onStepClick }) {
   if (!goal) return null;
 
-  const completedCount = goal.steps.filter(s => s.status === 'COMPLETED').length;
-  const totalSteps = goal.steps.length;
+  const steps = goal.steps ?? [];
+  const completedCount = steps.filter(s => s.status === 'COMPLETED').length;
+  const totalSteps = steps.length;
   const goalConfig = GOAL_STATUS_CONFIG[goal.status] || GOAL_STATUS_CONFIG.PLANNING;
   const canCancel = ['CONFIRMED', 'IN_PROGRESS'].includes(goal.status);
   const canRollback = ['IN_PROGRESS', 'COMPLETED', 'FAILED'].includes(goal.status);
@@ -69,7 +70,7 @@ export default function GoalTimeline({ goal, onCancel, onRollback, onStepClick }
 
       {totalSteps > 0 && (
         <div className="goal-steps-timeline">
-          {goal.steps.map((step, idx) => {
+          {steps.map((step, idx) => {
             const statusConf = STATUS_CONFIG[step.status] || STATUS_CONFIG.PENDING;
             const riskConf = RISK_CONFIG[step.risk_level] || RISK_CONFIG.unknown;
             const duration = formatDuration(step.duration_ms);
@@ -86,7 +87,7 @@ export default function GoalTimeline({ goal, onCancel, onRollback, onStepClick }
                   <div className={`step-dot ${statusConf.className}`}>
                     <span className="step-dot-icon">{statusConf.icon}</span>
                   </div>
-                  {idx < goal.steps.length - 1 && <div className="step-line" />}
+                  {idx < steps.length - 1 && <div className="step-line" />}
                 </div>
                 <div className="step-content">
                   <div className="step-header">

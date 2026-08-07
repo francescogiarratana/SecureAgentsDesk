@@ -132,13 +132,13 @@ export default function ArtifactPanel({
           <Markdown>{artifact.summary}</Markdown>
         </div>
       )}
-      {artifact.sections.map((section, i) => (
+      {(artifact.sections ?? []).map((section, i) => (
         <div key={i} className="artifact-section">
           <h4>{section.heading}</h4>
           <Markdown>{section.body}</Markdown>
         </div>
       ))}
-      {artifact.charts.map((chart, i) => (
+      {(artifact.charts ?? []).map((chart, i) => (
         <div key={i} className="artifact-chart">
           <ChartCanvas chart={chart} index={i} />
         </div>

@@ -68,6 +68,13 @@ button:disabled {
   margin-top: 1rem;
 }
 
+.version-warning-banner {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: rgba(192, 57, 43, 0.08);
+  border-bottom: 1px solid rgba(192, 57, 43, 0.2);
+}
+
 .app-layout {
   height: 100vh;
   display: flex;

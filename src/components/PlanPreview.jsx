@@ -25,6 +25,7 @@ function stepRiskLabel(step) {
 
 export default function PlanPreview({ plan, onConfirm, onReject, onRollback, disabled }) {
   if (!plan) return null;
+  const steps = plan.steps ?? [];
 
   return (
     <div className="plan-preview">
@@ -33,13 +34,13 @@ export default function PlanPreview({ plan, onConfirm, onReject, onRollback, dis
         <span className="plan-goal">{plan.goal}</span>
       </div>
 
-      {plan.steps.length === 0 ? (
+      {steps.length === 0 ? (
         <p className="plan-empty-hint">
           Nessun passaggio specifico previsto: l'agente risponderebbe direttamente.
         </p>
       ) : (
         <ol className="plan-steps">
-          {plan.steps.map((step) => (
+          {steps.map((step) => (
             <li key={step.step_number} className={step.requires_approval ? "plan-step-approval" : ""}>
               <span className="plan-step-description">{step.description}</span>
               <span className="plan-step-risk">{stepRiskLabel(step)}</span>

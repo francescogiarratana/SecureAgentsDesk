@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import {
   deleteConversation,
   fetchAvailableModels,
+  fetchHealth,
   fetchToken,
   getArtifact,
   getConversation,
@@ -47,6 +48,7 @@ import {
 } from "./localAgent";
 import { generateReportPdfBase64, suggestedReportPdfFileName } from "./pdfRenderer";
 import { buildReportMarkdown, suggestedReportFileName } from "./reportRenderer";
+import { DESK_VERSION, isVersionAtLeast } from "./version";
 import "./App.css";
 
 const ROLES = [
@@ -170,6 +172,26 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [token, setToken] = useState(null);
   const [authError, setAuthError] = useState(null);
+  const [versionWarning, setVersionWarning] = useState(null);
+
+  // Nessuna dipendenza da `token`: deve poter avvisare di un backend
+  // disallineato o irraggiungibile già dalla schermata di login, non solo
+  // dopo. Se la chiamata stessa fallisce (backend giù, rete assente) non è
+  // questo il posto giusto per segnalarlo — il resto dell'app lo farà con
+  // un messaggio più specifico al primo tentativo reale (es. login).
+  useEffect(() => {
+    fetchHealth()
+      .then((data) => {
+        const minDeskVersion = data?.min_compatible_desk_version;
+        if (minDeskVersion && !isVersionAtLeast(DESK_VERSION, minDeskVersion)) {
+          setVersionWarning(
+            `Questa versione del Desk (${DESK_VERSION}) non è più supportata da questo server ` +
+              `(richiede almeno la ${minDeskVersion}). Aggiorna l'app o contatta chi gestisce il backend.`
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [authorizedFolder, setAuthorizedFolder] = useState(null);
   const [sessionId] = useState(getOrCreateSessionId);
@@ -660,6 +682,7 @@ export default function App() {
       <main className="login-screen">
         <h1>SecureAgents Desk</h1>
         <p>Il tuo agente personale, sul tuo computer.</p>
+        {versionWarning && <p className="error-text">{versionWarning}</p>}
         <div className="role-picker">
           {ROLES.map((r) => (
             <button key={r.value} onClick={() => handleLogin(r.value)}>
@@ -697,6 +720,8 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {versionWarning && <p className="error-text version-warning-banner">{versionWarning}</p>}
 
       <button onClick={handleToggleArtifactsList} className="artifacts-toggle-link">
         Documenti generati
