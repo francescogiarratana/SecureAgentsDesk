@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+
+  rust-check:
+    # macos-latest, non ubuntu: Tauri v2 su Linux richiede le librerie
+    # GTK/WebKit di sistema (webkit2gtk, libsoup, appindicator...) via
+    # apt-get, non verificate qui — macOS le ha già, ed è la piattaforma su
+    # cui il progetto viene effettivamente sviluppato e provato oggi.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check --all-targets
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
