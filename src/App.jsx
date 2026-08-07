@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import Markdown from "react-markdown";
 import {
   deleteConversation,
+  fetchAvailableModels,
   fetchToken,
   getArtifact,
   getConversation,
@@ -189,6 +190,11 @@ export default function App() {
 
   // Nuovi stati per UI avanzata
   const [model, setModel] = useState("gpt-5.6-luna");
+  // Placeholder finché il backend non risponde: con LLM_PROVIDER=local
+  // questi 6 nomi OpenAI non significherebbero nulla per il server di
+  // inferenza configurato — vedi il fetch sotto, che li sostituisce col
+  // catalogo reale (GET /agent/models) appena disponibile.
+  const [availableModels, setAvailableModels] = useState(LLM_MODELS);
   const [reasoningEffort, setReasoningEffort] = useState("medium");
   const [attachments, setAttachments] = useState([]);
   // Indice del messaggio appena copiato: solo per il feedback visivo
@@ -249,6 +255,34 @@ export default function App() {
     // usabile — non vale un messaggio d'errore in faccia all'utente.
     listConversations(token, sessionId).then(setConversations).catch(() => {});
   }, [token, sessionId]);
+
+  useEffect(() => {
+    if (!token) return;
+    // Best-effort, stesso spirito di listConversations sopra: se la
+    // richiesta fallisce (backend più vecchio senza questo endpoint, rete
+    // assente), il placeholder LLM_MODELS resta valido per un deployment
+    // OpenAI — l'unico caso che peggiorerebbe è LLM_PROVIDER=local senza
+    // risposta dal backend, non peggiore di prima che questo fetch esistesse.
+    fetchAvailableModels(token)
+      .then((data) => {
+        const models = data?.models?.length ? data.models : LLM_MODELS;
+        setAvailableModels(models);
+        // Il modello scelto in precedenza (persistito solo in memoria, non
+        // in localStorage) potrebbe non esistere più nel nuovo catalogo —
+        // tipicamente "gpt-5.6-luna" contro un deployment locale con un
+        // solo modello configurato. Senza questa correzione, il selettore
+        // mostrerebbe un valore che il backend rifiuterebbe silenziosamente
+        // passandolo al server di inferenza sbagliato.
+        if (!models.some((m) => m.value === model) && data?.default_model) {
+          setModel(data.default_model);
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- "model" qui è
+    // letto solo per decidere se serve una correzione, non un input di cui
+    // questo effetto deve rieseguirsi ad ogni cambio (altrimenti setModel
+    // sopra lo farebbe scattare di nuovo in un ciclo).
+  }, [token]);
 
   async function refreshConversations() {
     try {
@@ -878,7 +912,7 @@ export default function App() {
               onModelChange={setModel}
               reasoningEffort={reasoningEffort}
               onReasoningEffortChange={setReasoningEffort}
-              models={LLM_MODELS}
+              models={availableModels}
               efforts={REASONING_EFFORTS}
               showEffort={modelSupportsReasoningEffort(model)}
               disabled={false}

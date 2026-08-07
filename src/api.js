@@ -217,3 +217,12 @@ export function rollbackGoal(token, goalId, sessionId) {
 export function fetchDocumentBySource(token, sessionId, sourceRef) {
   return getJson(`/documents/by-source/${encodeURIComponent(sourceRef)}`, token, { session_id: sessionId });
 }
+
+// Quali modelli il selettore può offrire — dipende da LLM_PROVIDER lato
+// backend (una scelta di deployment), non un elenco fisso qui: con un
+// deployment locale, i nomi OpenAI non significherebbero nulla per il
+// server di inferenza configurato (vedi SecureAgentsBackend/app/api/v1/
+// agent.py:get_available_models).
+export function fetchAvailableModels(token) {
+  return getJson("/agent/models", token);
+}
