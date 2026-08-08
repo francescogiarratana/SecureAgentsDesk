@@ -5,6 +5,12 @@
 export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000/api/v1";
 
+// Origine della console web (SecureAgentsFrontend, un prodotto separato da
+// questo Desk): mai chiamata via fetch da qui, solo apertura nel browser di
+// sistema per il ruolo Management (vedi handleOpenDashboard in App.jsx).
+export const FRONTEND_URL =
+  import.meta.env.VITE_FRONTEND_URL || "http://127.0.0.1:5173";
+
 // Nessun token: deve essere leggibile anche prima del login, per poter
 // segnalare un backend disallineato o irraggiungibile già dalla schermata
 // di accesso (vedi src/version.js e il controllo in App.jsx — §3.4 del

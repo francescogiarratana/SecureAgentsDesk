@@ -237,6 +237,20 @@ button:disabled {
   background-color: #eef1fb;
 }
 
+/* Volutamente diverso dagli altri pulsanti dell'header (arancio invece del
+   blu di .folder-button): apre la console web separata, non un'azione
+   locale come le altre, e solo il ruolo Management la vede. */
+.dashboard-link-button {
+  background-color: #ff9500;
+  color: #ffffff;
+  border: 1px solid #ff9500;
+  font-size: 0.85em;
+}
+
+.dashboard-link-button:hover {
+  background-color: #e08600;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -1626,6 +1640,15 @@ button:disabled {
     background-color: #2a2a2a;
   }
 
+  .dashboard-link-button {
+    background-color: #ff9f0a;
+    border-color: #ff9f0a;
+  }
+
+  .dashboard-link-button:hover {
+    background-color: #cc7f08;
+  }
+
   .artifacts-toggle-link {
     color: #777777;
   }
@@ -1842,22 +1865,6 @@ button:disabled {
     border-top-color: #555;
   }
 }
-
-.dictation-button.listening {
-  color: #ffffff;
-  background-color: #ef4444 !important;
-}
-
-.pulse-mic {
-  animation: pulse-red 1.5s infinite;
-}
-
-@keyframes pulse-red {
-  0% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
 
 /* --- Apple-inspired Aesthetic --- */
 :root {

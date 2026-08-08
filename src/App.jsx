@@ -17,7 +17,9 @@ import {
   sendChatMessageStream,
   submitClientActionResultStream,
   submitSelfApprovalResultStream,
+  FRONTEND_URL,
 } from "./api";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMessageContent } from "./components/Citation";
 import GoalTimeline from "./components/GoalTimeline";
 import StepInspector from "./components/StepInspector";
@@ -28,7 +30,6 @@ import ModelMenu from "./components/ModelMenu";
 import ConversationSidebar from "./components/ConversationSidebar";
 import PlanPreview from "./components/PlanPreview";
 import SelfApprovalCard from "./components/SelfApprovalCard";
-import DictationButton from "./components/DictationButton";
 import ToolTrace from "./components/ToolTrace";
 import {
   ArrowUpIcon,
@@ -414,6 +415,17 @@ export default function App() {
     }
   }
 
+  // Apre la console web (SecureAgentsFrontend, prodotto separato da questo
+  // Desk) nel browser di sistema — mai dentro questa finestra Tauri. Visibile
+  // solo al ruolo Management (vedi header più sotto).
+  async function handleOpenDashboard() {
+    try {
+      await openUrl(FRONTEND_URL);
+    } catch (err) {
+      setError(String(err?.message || err));
+    }
+  }
+
   function handleToolRun(action) {
     const alreadySeen = seenToolNames.has(action.tool_name);
     setSeenToolNames((prev) => new Set(prev).add(action.tool_name));
@@ -718,6 +730,11 @@ export default function App() {
           <button onClick={handleAuthorizeFolder} className="folder-button">
             {authorizedFolder ? `Cartella: ${authorizedFolder}` : "Autorizza una cartella"}
           </button>
+          {role === "Management" && (
+            <button onClick={handleOpenDashboard} className="dashboard-link-button">
+              Dashboard
+            </button>
+          )}
         </div>
       </header>
 
@@ -941,12 +958,6 @@ export default function App() {
               efforts={REASONING_EFFORTS}
               showEffort={modelSupportsReasoningEffort(model)}
               disabled={false}
-            />
-            <DictationButton
-              onDictationResult={(transcript) =>
-                setQuery((prev) => (prev ? `${prev} ${transcript}` : transcript))
-              }
-              disabled={sending || Boolean(pendingPlan) || Boolean(pendingSelfApproval)}
             />
             <button
               type="submit"
