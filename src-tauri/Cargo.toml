@@ -30,6 +30,13 @@ tokio = { version = "1", features = ["sync"] }
 # basso livello: qui serve testo, non manipolazione della struttura PDF).
 pdf-extract = "0.12"
 calamine = "0.36"
+# Estrazione testo per read_local_file su .docx: pure-Rust anche questo,
+# nessuna dipendenza nativa (stesso vincolo di pdf-extract/calamine sopra).
+# Usato qui solo in lettura, ma il crate porta comunque anche l'API di
+# scrittura: i test in fondo a questo file la usano per generare al volo
+# un .docx valido, invece di incorporare un fixture binario come per
+# PDF/XLSX.
+docx-rs = "0.4"
 # Per save_generated_binary_file: un valore Stringa JS non può portare byte
 # binari arbitrari (es. un PDF esportato) sopra l'IPC di Tauri senza
 # corrompersi, quindi il contenuto arriva già codificato in base64 e va

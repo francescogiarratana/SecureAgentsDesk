@@ -157,7 +157,7 @@ async function runClientActionTrampoline(token, initialStream, onToolRun, onChun
     if (turnResult.status === "awaiting_client_action") {
       const action = turnResult.awaiting_client_action;
       onToolRun?.(action);
-      const outcome = await runLocalToolAction(action.tool_name, action.tool_args);
+      const outcome = await runLocalToolAction(action.tool_name, action.tool_args, token);
       currentStream = submitClientActionResultStream(token, action.id, outcome);
     } else {
       finalResponse = turnResult;

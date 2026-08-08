@@ -230,6 +230,43 @@ export function fetchDocumentBySource(token, sessionId, sourceRef) {
   return getJson(`/documents/by-source/${encodeURIComponent(sourceRef)}`, token, { session_id: sessionId });
 }
 
+// Delega al backend l'estrazione testo di un file che il client Tauri non
+// può leggere da solo (PDF scansionato, immagine — vedi caso "NeedsOcr" in
+// localAgent.js:readLocalFileHandler). Corpo FormData, non JSON: a
+// differenza di postJson/request qui sopra, niente Content-Type impostato a
+// mano — il browser deve generare da solo il boundary multipart, altrimenti
+// il backend non riesce a fare il parsing del body (stesso motivo per cui
+// fetch va lasciato libero di impostarlo ogni volta che il body è FormData).
+export async function extractTextFromFile(fileBlob, filename, token) {
+  const formData = new FormData();
+  formData.append("file", fileBlob, filename);
+  let res;
+  try {
+    res = await fetch(`${BACKEND_URL}/documents/extract-text`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+  } catch (err) {
+    throw new Error("Errore di rete: impossibile raggiungere il server per l'estrazione del testo.");
+  }
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    const statusMsg =
+      res.status === 413
+        ? "File troppo grande."
+        : res.status === 401 || res.status === 403
+        ? "Autenticazione non valida o scaduta."
+        : res.status === 500
+        ? "Errore interno al server."
+        : `Richiesta fallita (${res.status}).`;
+    throw new Error(detail.detail || statusMsg);
+  }
+  return res.json();
+}
+
 // Quali modelli il selettore può offrire — dipende da LLM_PROVIDER lato
 // backend (una scelta di deployment), non un elenco fisso qui: con un
 // deployment locale, i nomi OpenAI non significherebbero nulla per il

@@ -4,6 +4,7 @@
 // read restano scoperti finché l'utente non autorizza una cartella tramite
 // pickAuthorizedFolder, mai l'intero filesystem.
 import { invoke } from "@tauri-apps/api/core";
+import { extractTextFromFile } from "./api";
 
 export function pickAuthorizedFolder() {
   return invoke("pick_authorized_folder");
@@ -32,26 +33,79 @@ export function saveGeneratedBinaryFile(suggestedFileName, contentBase64) {
   return invoke("save_generated_binary_file", { suggestedFileName, contentBase64 });
 }
 
+// Decodifica una stringa base64 (come quella che Rust manda per il caso
+// NeedsOcr) nei byte grezzi del file originale. Direzione opposta a quella
+// già nota in saveGeneratedBinaryFile qui sopra (lì JS produce base64 e Rust
+// lo decodifica su disco; qui è Rust a produrre base64 e JS deve decodificarlo
+// per poterlo rimandare al backend come multipart) — nessun pattern
+// preesistente in questo file/api.js per questa direzione, quindi atob +
+// Uint8Array è la via diretta senza dipendenze aggiuntive.
+function base64ToBlob(base64) {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return new Blob([bytes]);
+}
+
+// read_local_file oggi (lato Rust) ritorna {"kind": "Text", "content": "..."}
+// per i file da cui riesce a estrarre testo da solo, oppure
+// {"kind": "NeedsOcr", "content_base64": "...", "filename": "..."} quando non
+// può (PDF scansionato, immagine) — in quel caso serve delegare al backend,
+// che ha già la capacità di estrazione via /documents/extract-text. Il
+// risultato finale del tool resta sempre una stringa di testo, indistinguibile
+// per il modello dal caso in cui Rust l'avesse estratta da solo.
+async function readLocalFileHandler(args, token) {
+  const raw = await invoke("read_local_file", { relativePath: args.relative_path });
+
+  if (raw && raw.kind === "Text") {
+    return raw.content;
+  }
+
+  if (raw && raw.kind === "NeedsOcr") {
+    let blob;
+    try {
+      blob = base64ToBlob(raw.content_base64);
+    } catch (err) {
+      throw new Error(`Impossibile completare l'OCR: contenuto base64 non valido (${err?.message || err}).`);
+    }
+    try {
+      const { text } = await extractTextFromFile(blob, raw.filename, token);
+      return text;
+    } catch (err) {
+      const reason = typeof err === "string" ? err : String(err?.message || err);
+      throw new Error(`Impossibile completare l'OCR: ${reason}`);
+    }
+  }
+
+  throw new Error(`Risposta inattesa da read_local_file: tipo "${raw?.kind}" non riconosciuto.`);
+}
+
 // Mappa 1:1 con i tool registrati come fulfilled_by=CLIENT nel backend
 // (search_local_files, read_local_file): se il backend ne aggiunge uno
-// nuovo, va aggiunto qui prima che questo client possa risolverlo.
+// nuovo, va aggiunto qui prima che questo client possa risolverlo. Ogni
+// handler accetta uniformemente (args, token) anche se solo read_local_file
+// usa davvero il token (per delegare l'OCR al backend autenticato) — gli
+// altri lo ignorano, ma la firma resta la stessa per tutti.
 const LOCAL_TOOL_HANDLERS = {
-  search_local_files: (args) => invoke("search_local_files", { query: args.query }),
-  read_local_file: (args) => invoke("read_local_file", { relativePath: args.relative_path }),
+  search_local_files: (args, _token) => invoke("search_local_files", { query: args.query }),
+  read_local_file: readLocalFileHandler,
 };
 
 // Esegue localmente un'azione client richiesta dal backend, restituendo
 // sempre {result} o {error} — mai un'eccezione non gestita: il turno remoto
 // deve poter riprendere anche quando l'azione locale fallisce (permesso
-// negato, cartella non più raggiungibile, tool sconosciuto), non restare
-// bloccato in attesa di una risposta che non arriverà mai.
-export async function runLocalToolAction(toolName, toolArgs) {
+// negato, cartella non più raggiungibile, tool sconosciuto, OCR non
+// disponibile), non restare bloccato in attesa di una risposta che non
+// arriverà mai.
+export async function runLocalToolAction(toolName, toolArgs, token) {
   const handler = LOCAL_TOOL_HANDLERS[toolName];
   if (!handler) {
     return { error: `Tool locale sconosciuto a questo client: ${toolName}` };
   }
   try {
-    const result = await handler(toolArgs || {});
+    const result = await handler(toolArgs || {}, token);
     return { result };
   } catch (err) {
     return { error: typeof err === "string" ? err : String(err?.message || err) };
